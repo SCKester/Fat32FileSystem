@@ -33,6 +33,24 @@ int main(int argc, char *argv[]) {
             if (strcmp(cmd, "info") == 0) {
                 cmd_info(&fs);
             }
+              else if (strcmp(cmd, "mkdir") == 0) {
+                if (tokens->size != 2) {
+                    printf("Error: usage: mkdir [DIRNAME]\n");
+                } else {
+                    if (!fs_mkdir(&fs, tokens->items[1])) {
+                        /* fs_mkdir prints its own error message */
+                    }
+                }
+            }
+            else if (strcmp(cmd, "creat") == 0) {
+                if (tokens->size != 2) {
+                    printf("Error: usage: creat [FILENAME]\n");
+                } else {
+                    if (!fs_creat(&fs, tokens->items[1])) {
+                        /* fs_creat prints its own error message */
+                    }
+                }
+            }
             else if (strcmp(cmd, "exit") == 0) {
                 free_tokens(tokens);
                 free(input);
