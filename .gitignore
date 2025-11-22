@@ -1,0 +1,17 @@
+# Binaries
+bin/
+filesys
+*.exe
+
+# Object files
+obj/
+*.o
+
+# Editor backups
+*~
+*.swp
+
+# Mac OS junk files (safe even on Windows)
+.DS_Store
+
+########## END ADDED SECTION ##########
