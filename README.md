@@ -62,12 +62,14 @@ For a C/C++ example:
 ```bash
 make
 ```
-This will build the executable in ...
+This will build the executable in bin/filesys
 ### Execution
 ```bash
 make run
 ```
-This will run the program ...
+or ./bin/filesys fat32.img
+
+Once launched, the shell prompt will appear:
 
 ## Bugs
 - **Bug 1**: This is bug 1.

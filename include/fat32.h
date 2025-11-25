@@ -3,7 +3,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-/* FAT32 boot sector struct */
+/*
+ * FAT32 Boot Sector (BIOS Parameter Block)
+ * These fields are read directly from offsets inside the 512-byte boot sector.
+ * Values are LITTLE-ENDIAN in the disk image, so they must be converted.
+ */
 typedef struct {
     uint16_t bytes_per_sector;
     uint8_t  sectors_per_cluster;
@@ -14,29 +18,31 @@ typedef struct {
     uint32_t root_cluster;
 } Fat32BootSector;
 
-/* Represents mounted FAT32 filesystem */
+/*
+ * FileSystem
+ * Maintains all state needed for mounted FAT32 operations:
+ *  - parsed boot sector fields
+ *  - FAT & data region offsets
+ *  - a FILE* handle to the disk image
+ *  - current working directory cluster (for future parts)
+ */
 typedef struct {
-    FILE *image;
-    char  image_name[256];
-    Fat32BootSector bpb;
-        /* Sector index where the first FAT starts */
-    uint32_t fat_start_sector;
+    FILE *image; // handle to opened FAT32 image file
+    char  image_name[256];  // name shown in the shell prompt
+    Fat32BootSector bpb; // boot sector info for this FS
 
-    /* Sector index where the data region (cluster 2) starts */
-    uint32_t first_data_sector;
+    uint32_t fat_start_sector; // first FAT's starting sector index
+    uint32_t first_data_sector; // first sector of data region (cluster #2)
+    uint32_t total_clusters; // first sector of data region (cluster #2)
 
-    /* Total number of clusters in the data region */
-    uint32_t total_clusters;
-
-    /* Current working directory cluster (initialized to root) */
-    uint32_t cwd_cluster;
+    uint32_t cwd_cluster; // cluster of current working directory
 } FileSystem;
 
 /* Mount/unmount functions */
 bool fs_mount(FileSystem *fs, const char *image_path);
 void fs_unmount(FileSystem *fs);
 
-/* Commands for Part 1 */
+/* Part 1: print boot sector + computed filesystem information */
 void cmd_info(const FileSystem *fs);
 
 /* Create a new directory in the current working directory */

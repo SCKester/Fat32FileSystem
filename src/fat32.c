@@ -138,7 +138,17 @@ static void build_short_name(char dest[11], const char *name) {
     }
 }
 
-/* Read a FAT32 entry for a given cluster */
+/* Read a FAT32 entry for a given cluster.
+ *
+ * Each FAT32 entry is 32 bits (4 bytes).
+ * FAT offset = cluster * 4
+ * FAT sector = fat_start_sector + (fat_offset / bytes_per_sector)
+ * entry offset = fat_offset % bytes_per_sector
+ *
+ * This function returns:
+ *   - next cluster in chain
+ *   - FAT32_EOC when at end of cluster chain
+ */
 static uint32_t read_fat_entry(FileSystem *fs, uint32_t cluster) {
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t fat_offset = cluster * 4;
@@ -300,7 +310,16 @@ static int dir_scan_for_entry(FileSystem *fs,
     return 0;
 }
 
-/* Create a directory entry at a given byte offset in the image */
+/* write_directory_entry()
+ * Writes a single 32-byte FAT directory entry.
+ * The entry includes:
+ *  - 11-byte short name (uppercased, padded with spaces)
+ *  - attribute byte
+ *  - first cluster (split between offset 20–21 and 26–27)
+ *  - file size (only meaningful for regular files)
+ *
+ * Used by both fs_mkdir() and fs_creat().
+ */
 static void write_directory_entry(FileSystem *fs,
                                   long entry_offset,
                                   const char short_name[11],
@@ -330,7 +349,19 @@ static void write_directory_entry(FileSystem *fs,
     fwrite(entry, 1, sizeof(entry), fs->image);
 }
 
-/* Public API: mkdir */
+/* fs_mkdir()
+ * Implements FAT32 directory creation:
+ *   1. Validate input (1–11 char FAT short names only)
+ *   2. Convert to 11-byte short name
+ *   3. Scan the current directory cluster for:
+ *         - duplicate name
+ *         - free entry slot
+ *   4. Allocate a free cluster for new directory
+ *   5. Initialize '.' and '..' entries in the new cluster
+ *   6. Write a directory entry in the parent directory
+ *
+ * Returns true on success, false on failure.
+ */
 bool fs_mkdir(FileSystem *fs, const char *name) {
     if (!name || name[0] == '\0') {
         printf("Error: mkdir requires a directory name\n");
@@ -384,6 +415,15 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
     return true;
 }
 
+/* fs_creat()
+ * Creates an **empty file** with size = 0 and first_cluster = 0.
+ * No cluster is allocated until the file is written to (Part 4).
+ *
+ * Steps mirror fs_mkdir(), except:
+ *   - attribute = 0x20 (archive / file)
+ *   - no '.' or '..' initialization
+ *   - first cluster = 0
+ */
 bool fs_creat(FileSystem *fs, const char *name) {
     if (!name || name[0] == '\0') {
         printf("Error: creat requires a file name\n");
