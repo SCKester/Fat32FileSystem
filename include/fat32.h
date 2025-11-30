@@ -37,7 +37,7 @@ typedef struct {
     uint32_t total_clusters; // first sector of data region (cluster #2)
 
     uint32_t cwd_cluster; // cluster of current working directory
-    uint32_t cwd_FAT_entry; //FAT entry number of cwd
+    
 } FileSystem;
 
 /* Mount/unmount functions */
