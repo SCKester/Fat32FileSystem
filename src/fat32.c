@@ -19,7 +19,7 @@ static uint32_t read_le32(const unsigned char *p) {
 bool fs_mount(FileSystem *fs, const char *image_path) {
     memset(fs, 0, sizeof(*fs));
 
-    fs->image = fopen(image_path, "rb");
+    fs->image = fopen(image_path, "r+b");
     if (!fs->image) {
         fprintf(stderr, "Error: cannot open image file '%s'\n", image_path);
         return false;
@@ -47,7 +47,7 @@ bool fs_mount(FileSystem *fs, const char *image_path) {
     bpb->total_sectors = (total16 != 0) ? total16 : total32;
 
     bpb->fat_size_sectors = read_le32(&boot[0x24]);
-    bpb->root_cluster     = read_le32(&boot[0x2C]);
+    bpb->root_cluster = boot[0x2C];
 
      /* Compute commonly used layout values */
     uint32_t bytes_per_sector    = bpb->bytes_per_sector;
@@ -68,6 +68,8 @@ bool fs_mount(FileSystem *fs, const char *image_path) {
     /* Start with current working directory at the root cluster */
     fs->cwd_cluster = bpb->root_cluster;
 
+    fs->fat_end_sector = fs->fat_start_sector + bpb->fat_size_sectors;
+
     return true;
 }
 
@@ -81,6 +83,7 @@ void fs_unmount(FileSystem *fs) {
 
 /* info command */
 void cmd_info(const FileSystem *fs) {
+
     const Fat32BootSector *bpb = &fs->bpb;
 
     uint32_t bytes_per_sector    = bpb->bytes_per_sector;
@@ -105,6 +108,7 @@ void cmd_info(const FileSystem *fs) {
     printf("total # of clusters in data region: %u\n", total_clusters);
     printf("# of entries in one FAT: %u\n", entries_per_fat);
     printf("size of image (in bytes): %llu\n", image_bytes);
+
 }
 
 #define FAT32_EOC 0x0FFFFFFF
@@ -130,7 +134,7 @@ static void build_short_name(char dest[11], const char *name) {
 
     for (size_t i = 0; i < len; i++) {
         char c = name[i];
-        /* FAT short names are typically uppercase */
+        
         if (c >= 'a' && c <= 'z') {
             c = (char)(c - 'a' + 'A');
         }
@@ -346,7 +350,12 @@ static void write_directory_entry(FileSystem *fs,
     if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
         return;
     }
-    fwrite(entry, 1, sizeof(entry), fs->image);
+    
+    size_t written = fwrite(entry, sizeof(entry), 1, fs->image);
+    if (written != 1) {
+        fprintf(stderr, "fwrite failed to write directory entry\n");
+    }
+
 }
 
 /* fs_mkdir()
@@ -411,6 +420,8 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
                           0x10, /* directory attribute */
                           new_cluster,
                           0 /* size */);
+
+    printf("writing to offset %li" , free_offset);
 
     return true;
 }

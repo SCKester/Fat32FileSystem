@@ -32,10 +32,12 @@ typedef struct {
     Fat32BootSector bpb; // boot sector info for this FS
 
     uint32_t fat_start_sector; // first FAT's starting sector index
+    uint32_t fat_end_sector; //ending sector of the first FAT , honestly lets just use the first one only - that should be fine
     uint32_t first_data_sector; // first sector of data region (cluster #2)
     uint32_t total_clusters; // first sector of data region (cluster #2)
 
     uint32_t cwd_cluster; // cluster of current working directory
+    uint32_t cwd_FAT_entry; //FAT entry number of cwd
 } FileSystem;
 
 /* Mount/unmount functions */
