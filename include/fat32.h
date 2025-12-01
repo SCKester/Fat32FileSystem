@@ -41,6 +41,11 @@ typedef struct {
 
 } FileSystem;
 
+typedef struct {
+    size_t size; //size of cwd arr
+    char* cwd; //cwd is expected to be a dynamically allocated array freed by creator
+} CurrentDirectory;
+
 /* Mount/unmount functions */
 bool fs_mount(FileSystem *fs, const char *image_path);
 void fs_unmount(FileSystem *fs);
@@ -60,3 +65,7 @@ void fs_ls(const FileSystem *fs);
 
 /* Change current working directory to DIRNAME */
 bool fs_cd(FileSystem *fs, const char *dirname);
+
+/* Return the full path of the current working directory. The returned
+ * string is dynamically allocated and must be freed by the caller. */
+CurrentDirectory getcwd(FileSystem *fs);

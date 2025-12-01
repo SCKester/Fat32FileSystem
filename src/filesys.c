@@ -4,6 +4,7 @@
 
 #include "lexer.h"
 #include "fat32.h"
+#include "utils.h"
 
 /*
  * Main interactive shell for FAT32 project.
@@ -33,10 +34,15 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    const char *cwd = "/";  // Part 1 doesn’t require real paths yet
+    struct OpenFiles openFiles = getOpenFilesStruct(); //holds all the open files (up to 10)
+
+    CurrentDirectory cwd;  // Part 1 doesn’t require real paths yet
 
     while (1) {
-        printf("%s%s> ", fs.image_name, cwd);
+
+        cwd = getcwd( &fs );
+
+        printf("%s%s> ", fs.image_name, cwd.cwd );
         fflush(stdout);
 
         char *input = get_input();
@@ -126,6 +132,7 @@ int main(int argc, char *argv[]) {
     }
 
     fs_unmount(&fs);
+    closeAllFiles( &openFiles );
     return EXIT_SUCCESS;
 }
 

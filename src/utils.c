@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <stdio.h>
 
 
 struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
@@ -8,13 +9,15 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
     for( int i = 0 ; i < 10 ; i++ ) {
         files.files[i].index = i;
         files.files[i].offset = 0; 
-        files.files->open = 0;
+        files.files[i].open = 0;
     }
 
     return files;
 }
 
-size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions , uint32_t startCluster ) {
+//we can do a bit of cheating here because we know files will only be opened in the cwd
+//and that all files will only be scanned in the cwd
+size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions , uint32_t startCluster , char* path ) {
     
     size_t index = -1;
 
@@ -36,6 +39,8 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions 
     files->files[index].open = 1;
     files->files[index].startCluster = startCluster;
 
+    files->files[index].filePath = path;
+
     return index;
 }
 
@@ -54,8 +59,21 @@ size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
         return index;
     }
 
+    free( files->files[index].filePath );
+
     files->files[index].open = 0; //set open flag to false so can be overwritten
 
     return index;
 }
 
+//call this on exit to close all files ( free mem )
+void closeAllFiles( struct OpenFiles* files ) {
+
+    for ( int i = 0 ; i < 10 ; i++ ) {
+        if( files->files[i].open == 1 ) {
+            printf("index: %i" , i);
+            free( files->files[i].filePath );
+        }
+    }
+
+}
