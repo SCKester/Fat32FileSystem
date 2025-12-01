@@ -53,3 +53,10 @@ bool fs_mkdir(FileSystem *fs, const char *name);
 
 /* Create a new empty file (size 0) in the current working directory */
 bool fs_creat(FileSystem *fs, const char *name);
+
+/* Part 2: Navigation commands */
+/* List directory contents of the current working directory */
+void fs_ls(const FileSystem *fs);
+
+/* Change current working directory to DIRNAME */
+bool fs_cd(FileSystem *fs, const char *dirname);

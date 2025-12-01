@@ -8,10 +8,12 @@
 /*
  * Main interactive shell for FAT32 project.
  *
- * Supported commands (Part 1 + Part 3):
+ * Supported commands (Part 1 + Part 2):
  *   info        → print filesystem metadata
  *   mkdir NAME  → create directory in cwd
  *   creat NAME  → create empty file in cwd
+ *   ls          → list directory contents
+ *   cd DIRNAME  → change current working directory
  *   exit        → quit the shell
  *
  * The shell repeatedly:
@@ -77,6 +79,28 @@ int main(int argc, char *argv[]) {
                 } else {
                     if (!fs_creat(&fs, tokens->items[1])) {
                         /* fs_creat prints its own error message */
+                    }
+                }
+            }
+            else if (strcmp(cmd, "ls") == 0) {
+                /*
+                * ls
+                * Lists all directory entries in the current working directory.
+                * Prints the name field for each entry including "." and "..".
+                */
+                fs_ls(&fs);
+            }
+            else if (strcmp(cmd, "cd") == 0) {
+                /*
+                * cd [DIRNAME]
+                * Changes the current working directory to DIRNAME.
+                * Prints an error if DIRNAME does not exist or is not a directory.
+                */
+                if (tokens->size != 2) {
+                    printf("Error: usage: cd [DIRNAME]\n");
+                } else {
+                    if (!fs_cd(&fs, tokens->items[1])) {
+                        /* fs_cd prints its own error message */
                     }
                 }
             }
