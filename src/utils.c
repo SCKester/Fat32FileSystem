@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "fat32.h"
 
 
 struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
@@ -14,7 +15,7 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
     return files;
 }
 
-size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions , uint32_t startCluster ) {
+size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions , size_t startCluster ) {
     
     size_t index = -1;
 
@@ -39,7 +40,7 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions 
     return index;
 }
 
-size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
+size_t closeFile( struct OpenFiles* files , size_t startCluster ) {
 
     size_t index = -1;
 
@@ -59,3 +60,10 @@ size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
     return index;
 }
 
+
+//reads file starting at "starting entry num" in the FAT
+size_t readFile( size_t starting_entry_num , FileSystem* fs ) {
+
+    long long int cwdOffset = fs->cwd_cluster * fs->bpb.bytes_per_sector + ( fs->first_data_sector * fs->bpb.bytes_per_sector );
+
+}
