@@ -718,9 +718,9 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 
         free(buf);
 
-        if (parent == 0) 
-            break; 
-
+        if (parent == 0) {  
+            parent = root;
+        }
         /* Now scan parent directory to find the entry whose cluster == cur
          * That entry's name is the segment we need to prepend. */
         cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
@@ -745,9 +745,11 @@ CurrentDirectory getcwd( FileSystem *fs ) {
             if ((attr & 0x0F) == 0x0F) continue; // long name
 
             // Extract cluster of this entry 
-            uint32_t ch = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
-            uint32_t cl = ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-            uint32_t ent_cluster = ch | cl;
+            uint32_t ent_cluster =
+                ((uint32_t)entry[21] << 24) |
+                ((uint32_t)entry[20] << 16) |
+                ((uint32_t)entry[27] <<  8) |
+                (uint32_t)entry[26];
 
             if (ent_cluster == cur) {
 
