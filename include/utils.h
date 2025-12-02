@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "lexer.h"
+#include "fat32.h"
 
 typedef struct { 
     char fileName[12]; // null terminated file name
@@ -22,7 +23,7 @@ struct OpenFiles getOpenFilesStruct();
 
 //scans for first available index and creates open file entry on that index , returns the index , -1 if error
 //offset set to 0
-size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint32_t startCluster , char* path );
+size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint32_t startCluster , CurrentDirectory direc );
 
 //closes file with starting cluster of StartCluster, returns index of closed file or -1 if not found
 size_t closeFile( struct OpenFiles* files , uint32_t startCluster );
@@ -31,5 +32,3 @@ void closeAllFiles( struct OpenFiles* files );
 
 //1 is read , 2 is write ,  3 is read/write - -1 is none or not valid
 size_t getReadWrite( tokenlist* tokens  );
-
-static size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files );

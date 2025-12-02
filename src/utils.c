@@ -1,6 +1,19 @@
 #include "utils.h"
 #include <stdio.h>
 
+//-1 if open , 0 if not open
+static size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
+
+    printf("%i" , startCluster);
+
+    for ( size_t i = 0 ; i < 10 ; i++ ) {
+        if( files->files[i].startCluster == startCluster ) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
 
 struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 
@@ -10,6 +23,7 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
         files.files[i].index = i;
         files.files[i].offset = 0; 
         files.files[i].open = 0;
+        files.files[i].startCluster = -1;
     }
 
     return files;
@@ -18,7 +32,7 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 //we can do a bit of cheating here because we know files will only be opened in the cwd
 //and that all files will only be scanned in the cwd
 // -1 if failed , 0 if succeeded
-size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint32_t startCluster , char* path ) {
+size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint32_t startCluster , CurrentDirectory direc ) {
     
     size_t index = -1;
 
@@ -43,6 +57,10 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint3
     files->files[index].offset = 0;
     files->files[index].open = 1;
     files->files[index].startCluster = startCluster;
+
+    char* path = (char*) malloc( sizeof(char) * direc.size + 1 );
+
+    strcpy( path , direc.cwd );
 
     files->files[index].filePath = path;
 
@@ -69,20 +87,6 @@ size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
     files->files[index].open = 0; //set open flag to false so can be overwritten
 
     return index;
-}
-
-//-1 if open , 0 if not open
-static size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
-
-    printf("%i" , startCluster);
-
-    for ( size_t i = 0 ; i < 10 ; i++ ) {
-        if( files->files[i].startCluster == startCluster ) {
-            return -1;
-        }
-    }
-
-    return 0;
 }
 
 //call this on exit to close all files ( free mem )

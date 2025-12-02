@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "fat32.h"
 #include <string.h>
 #include <stdio.h>
@@ -655,10 +656,14 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 
     /* If at root, return "/" */
     if (cur == root) {
-        char *s = (char*) malloc(2);
+        char* s = (char*) malloc(2);
+
         if (s) { s[0] = '/'; s[1] = '\0'; }
 
+        printf("here");
+        
         directory.size = 2;
+
         directory.cwd = s;
 
         return directory;
@@ -671,10 +676,14 @@ CurrentDirectory getcwd( FileSystem *fs ) {
     char** segments = (char**) malloc(cap * sizeof(char*));
 
     while (cur != root) {
-        /* Read current directory cluster to find ".." entry (parent) */
+        // Read current directory cluster to find ".." entry (parent) 
+
         const uint32_t cluster = cur;
+
         uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
         unsigned char* buf = (unsigned char*) malloc(cluster_size);
+
         if (!buf) break;
 
         long dir_offset = cluster_to_offset(fs, cluster);
@@ -685,13 +694,18 @@ CurrentDirectory getcwd( FileSystem *fs ) {
         }
 
         uint32_t parent = 0;
-        /* Find the entry for ".." */
+        // Find the entry for ".." 
         for (uint32_t off = 0; off < cluster_size; off += 32) {
+
             unsigned char *entry = buf + off;
+
             if (entry[0] == 0x00) break;
+
             if (entry[0] == 0xE5) continue;
+
             unsigned char attr = entry[11];
-            if ((attr & 0x0F) == 0x0F) continue; /* long name */
+
+            if ((attr & 0x0F) == 0x0F) continue; // long name 
 
             if (entry[0] == '.' && entry[1] == '.') {
                 uint32_t ch = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
@@ -703,7 +717,8 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 
         free(buf);
 
-        if (parent == 0) break; /* can't find parent -> abort */
+        if (parent == 0) 
+            break; 
 
         /* Now scan parent directory to find the entry whose cluster == cur
          * That entry's name is the segment we need to prepend. */
@@ -726,9 +741,9 @@ CurrentDirectory getcwd( FileSystem *fs ) {
             if (entry[0] == 0x00) break;
             if (entry[0] == 0xE5) continue;
             unsigned char attr = entry[11];
-            if ((attr & 0x0F) == 0x0F) continue; /* long name */
+            if ((attr & 0x0F) == 0x0F) continue; // long name
 
-            /* Extract cluster of this entry */
+            // Extract cluster of this entry 
             uint32_t ch = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
             uint32_t cl = ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
             uint32_t ent_cluster = ch | cl;
@@ -794,6 +809,7 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 
     //compute total length for the joined path: leading '/', segments and '/' between
     size_t total = 1; 
+
     for (size_t i = 0; i < nseg; ++i) total += strlen(segments[i]) + 1;
 
     char* path = (char*) malloc(total + 1);
@@ -812,11 +828,17 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 
     //segments are from child->parent; we need to print in reverse 
     for (size_t i = 0; i < nseg; ++i) {
+
         char* seg = segments[nseg - 1 - i];
+
         size_t len = strlen(seg);
+
         memcpy(p, seg, len);
+
         p += len;
+
         if (i + 1 < nseg) *p++ = '/';
+
         free(seg);
     }
 
