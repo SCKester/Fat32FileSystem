@@ -17,9 +17,14 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 
 //we can do a bit of cheating here because we know files will only be opened in the cwd
 //and that all files will only be scanned in the cwd
-size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions , uint32_t startCluster , char* path ) {
+// -1 if failed , 0 if succeeded
+size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint32_t startCluster , char* path ) {
     
     size_t index = -1;
+
+    if( checkIsOpen( startCluster , files ) == -1 ) {
+        return -1;
+    }
 
     for ( int i = 0 ; i < 10 ; i++ ) {
         if( files->files[i].open == 0 ) {
@@ -33,7 +38,7 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , char* permisssions 
     }
 
     strcpy( files->files[index].fileName , fileName );
-    strcpy( files->files[index].permissions , permisssions );
+    files->files->permissions = mode;
 
     files->files[index].offset = 0;
     files->files[index].open = 1;
@@ -66,6 +71,20 @@ size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
     return index;
 }
 
+//-1 if open , 0 if not open
+static size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
+
+    printf("%i" , startCluster);
+
+    for ( size_t i = 0 ; i < 10 ; i++ ) {
+        if( files->files[i].startCluster == startCluster ) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 //call this on exit to close all files ( free mem )
 void closeAllFiles( struct OpenFiles* files ) {
 
@@ -77,3 +96,30 @@ void closeAllFiles( struct OpenFiles* files ) {
     }
 
 }
+
+size_t getReadWrite( tokenlist* tokens  ) { 
+
+    if( strcmp( tokens->items[2] , "r" ) != 0 && 
+    strcmp( tokens->items[2] , "w" ) != 0 && 
+    strcmp( tokens->items[2] , "rw" ) != 0 && 
+    strcmp( tokens->items[2] , "wr" ) != 0 ) {
+        return -1;
+    }
+
+    if( strcmp( tokens->items[2] , "rw" ) == 0 || 
+    strcmp( tokens->items[2] , "wr" ) == 0  ) {
+        return 3;
+    }
+
+    if( strcmp( tokens->items[2] , "w" ) == 0 ) {
+        return 2;
+    }
+
+    if( strcmp( tokens->items[2] , "r" ) == 0 ) {
+        return 2;
+    }
+
+
+    return -1;
+}
+

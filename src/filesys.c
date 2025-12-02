@@ -122,6 +122,30 @@ int main(int argc, char *argv[]) {
                 free(input);
                 break;
             }
+            else if ( strcmp( cmd , "open" ) == 0 ) {
+                
+                if( tokens->size != 3 || getReadWrite( tokens ) == -1 ) {
+                    printf("Error: usage: open [FILENAME] [FLAGS]\n");
+                }
+                else {
+
+                    if( checkExists( tokens->items[1] , &fs ) == -1  || checkIsFile( tokens->items[1] , &fs ) == -1 ) { //file/directory doesnt exist
+                        printf("Error: file does not exist\n" );
+                    }
+                    else {
+
+                        //we now know that filename is a file in cwd
+
+                        CurrentDirectory direc = getcwd( &fs );
+
+                        if( openFile( &openFiles , tokens->items[1] , getReadWrite( tokens ) , getStartCluster( tokens->items[1] , &fs ) , direc.cwd ) == -1 ) {
+                            printf("Error: cannot open file, likely already open.\n");
+                            free( direc.cwd );
+                        }
+                    }
+
+                }
+            }
             else {
                 printf("Error: unknown command '%s'\n", cmd);
             }

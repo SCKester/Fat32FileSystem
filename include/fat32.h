@@ -69,3 +69,9 @@ bool fs_cd(FileSystem *fs, const char *dirname);
 /* Return the full path of the current working directory. The returned
  * string is dynamically allocated and must be freed by the caller. */
 CurrentDirectory getcwd(FileSystem *fs);
+
+size_t checkExists(char* filename, FileSystem* fs);
+
+size_t checkIsFile(char* filename, FileSystem* fs);
+
+uint32_t getStartCluster(char* filename, FileSystem* fs);
