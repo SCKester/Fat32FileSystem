@@ -120,6 +120,7 @@ int main(int argc, char *argv[]) {
                 */
                 free_tokens(tokens);
                 free(input);
+                free(cwd.cwd);
                 break;
             }
             else if ( strcmp( cmd , "open" ) == 0 ) {
@@ -138,7 +139,7 @@ int main(int argc, char *argv[]) {
 
                         CurrentDirectory direc = getcwd( &fs );
 
-                        if( openFile( &openFiles , tokens->items[1] , getReadWrite( tokens ) , getStartCluster( tokens->items[1] , &fs ) , direc.cwd ) == -1 ) {
+                        if( openFile( &openFiles , tokens->items[1] , getReadWrite( tokens ) , getStartCluster( tokens->items[1] , &fs ) , direc ) == -1 ) {
                             printf("Error: cannot open file, likely already open.\n");
                             free( direc.cwd );
                         }
@@ -153,6 +154,7 @@ int main(int argc, char *argv[]) {
 
         free_tokens(tokens);
         free(input);
+        free(cwd.cwd);
     }
 
     fs_unmount(&fs);
