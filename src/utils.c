@@ -99,23 +99,23 @@ void closeAllFiles( struct OpenFiles* files ) {
 
 size_t getReadWrite( tokenlist* tokens  ) { 
 
-    if( strcmp( tokens->items[2] , "r" ) != 0 && 
-    strcmp( tokens->items[2] , "w" ) != 0 && 
-    strcmp( tokens->items[2] , "rw" ) != 0 && 
-    strcmp( tokens->items[2] , "wr" ) != 0 ) {
+    if( strcmp( tokens->items[2] , "-r" ) != 0 && 
+    strcmp( tokens->items[2] , "-w" ) != 0 && 
+    strcmp( tokens->items[2] , "-rw" ) != 0 && 
+    strcmp( tokens->items[2] , "-wr" ) != 0 ) {
         return -1;
     }
 
-    if( strcmp( tokens->items[2] , "rw" ) == 0 || 
-    strcmp( tokens->items[2] , "wr" ) == 0  ) {
+    if( strcmp( tokens->items[2] , "-rw" ) == 0 || 
+    strcmp( tokens->items[2] , "-wr" ) == 0  ) {
         return 3;
     }
 
-    if( strcmp( tokens->items[2] , "w" ) == 0 ) {
+    if( strcmp( tokens->items[2] , "-w" ) == 0 ) {
         return 2;
     }
 
-    if( strcmp( tokens->items[2] , "r" ) == 0 ) {
+    if( strcmp( tokens->items[2] , "-r" ) == 0 ) {
         return 2;
     }
 

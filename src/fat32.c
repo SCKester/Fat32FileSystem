@@ -427,16 +427,13 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
     return true;
 }
 
-/* fs_creat()
- * Creates an **empty file** with size = 0 and first_cluster = 0.
- * No cluster is allocated until the file is written to (Part 4).
- *
- * Steps mirror fs_mkdir(), except:
- *   - attribute = 0x20 (archive / file)
- *   - no '.' or '..' initialization
- *   - first cluster = 0
+/*
+ * Creates an empty file with size = 0 and allocates a starting cluster.
+ *  attribute = 0x20
+ *  ALLOCATES a starting cluster for the file
  */
 bool fs_creat(FileSystem *fs, const char *name) {
+
     if (!name || name[0] == '\0') {
         printf("Error: creat requires a file name\n");
         return false;
@@ -453,6 +450,7 @@ bool fs_creat(FileSystem *fs, const char *name) {
 
     long free_offset;
     int exists;
+
     if (dir_scan_for_entry(fs, fs->cwd_cluster, short_name,
                            &free_offset, &exists) != 0) {
         printf("Error: failed to read directory\n");
@@ -469,16 +467,24 @@ bool fs_creat(FileSystem *fs, const char *name) {
         return false;
     }
 
-    /* For creat, do NOT allocate a data cluster yet: size = 0, first_cluster = 0 */
+    //Allocate a starting cluster for the file
+    uint32_t start_cluster = allocate_cluster(fs);
+
+    if (start_cluster == 0) {
+        printf("Error: no free clusters available\n");
+        return false;
+    }
+
+    //Write directory entry with the allocated cluster
     write_directory_entry(fs, free_offset, short_name,
                           0x20,
-                          0,
+                          start_cluster,
                           0);
 
     return true;
 }
 
-/* fs_ls()
+/* 
  * Lists all directory entries in the current working directory.
  * Prints the name field for each directory and file, including "." and "..".
  * Skips deleted entries (0xE5) and long filename entries (0x0F).
@@ -538,13 +544,8 @@ void fs_ls(const FileSystem *fs) {
     free(buf);
 }
 
-/* fs_cd()
+/* 
  * Changes the current working directory to DIRNAME.
- *
- * Special cases:
- *   - "." stays in current directory
- *   - ".." moves to parent directory
- *
  * Returns true on success, false on failure.
  * Prints an error message if DIRNAME does not exist or is not a directory.
  */
@@ -853,7 +854,7 @@ size_t checkExists(char* filename, FileSystem* fs) {
 
 /* checkIsFile()
  * Returns 0 if the entry with name 'filename' exists in the current working
- * directory and is a regular file (not a directory). Returns (size_t)-1 if
+ * directory and is a regular file (not a directory). returns -1 if
  * it does not exist, is a directory, or on error.
  */
 size_t checkIsFile(char* filename, FileSystem* fs) {
@@ -910,7 +911,7 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
  * `filename` in the current working directory. Returns 0 if not found or on error.
  */
 uint32_t getStartCluster(char* filename, FileSystem* fs) {
-    
+
     if (!filename || !fs || !fs->image) 
         return 0;
 
