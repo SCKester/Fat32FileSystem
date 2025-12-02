@@ -226,10 +226,10 @@ static void init_directory_cluster(FileSystem *fs,
     dot[0] = '.';
     dot[11] = 0x10; 
 
-    /* Cluster number for "." */
+    /* Cluster number for "." (little-endian) */
     uint32_t cl = new_cluster;
-    dot[20] = (unsigned char)((cl >> 24) & 0xFF);
-    dot[21] = (unsigned char)((cl >> 16) & 0xFF);
+    dot[20] = (unsigned char)((cl >> 16) & 0xFF);
+    dot[21] = (unsigned char)((cl >> 24) & 0xFF);
     dot[26] = (unsigned char)(cl & 0xFF);
     dot[27] = (unsigned char)((cl >> 8) & 0xFF);
 
@@ -241,8 +241,8 @@ static void init_directory_cluster(FileSystem *fs,
     dotdot[11] = 0x10; 
 
     cl = parent_cluster;
-    dotdot[20] = (unsigned char)((cl >> 24) & 0xFF);
-    dotdot[21] = (unsigned char)((cl >> 16) & 0xFF);
+    dotdot[20] = (unsigned char)((cl >> 16) & 0xFF);
+    dotdot[21] = (unsigned char)((cl >> 24) & 0xFF);
     dotdot[26] = (unsigned char)(cl & 0xFF);
     dotdot[27] = (unsigned char)((cl >> 8) & 0xFF);
 
@@ -336,9 +336,9 @@ static void write_directory_entry(FileSystem *fs,
     memcpy(entry, short_name, 11);
     entry[11] = attr;
 
-    /* First cluster split into high and low parts */
-    entry[20] = (unsigned char)((first_cluster >> 24) & 0xFF);
-    entry[21] = (unsigned char)((first_cluster >> 16) & 0xFF);
+    /* First cluster split into high and low parts (little-endian) */
+    entry[20] = (unsigned char)((first_cluster >> 16) & 0xFF);
+    entry[21] = (unsigned char)((first_cluster >> 24) & 0xFF);
     entry[26] = (unsigned char)(first_cluster & 0xFF);
     entry[27] = (unsigned char)((first_cluster >> 8) & 0xFF);
 
@@ -615,10 +615,9 @@ bool fs_cd(FileSystem *fs, const char *dirname) {
             }
 
             /* Extract the cluster number from the entry */
-            /* Cluster is stored as: high word at bytes 20-21, low word at bytes 26-27 */
-            uint32_t cluster_high = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
-            uint32_t cluster_low = ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-            target_cluster = cluster_high | cluster_low;
+            /* Cluster is stored as: high word at bytes 20-21, low word at bytes 26-27 (little-endian) */
+            target_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                           ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
             found = true;
             break;
@@ -630,6 +629,11 @@ bool fs_cd(FileSystem *fs, const char *dirname) {
     if (!found) {
         printf("Error: '%s' does not exist\n", dirname);
         return false;
+    }
+
+    /* In FAT32, if target cluster is 0, it means the root directory */
+    if (target_cluster == 0) {
+        target_cluster = fs->bpb.root_cluster;
     }
 
     /* Update current working directory */
@@ -694,16 +698,18 @@ CurrentDirectory getcwd( FileSystem *fs ) {
             if ((attr & 0x0F) == 0x0F) continue; /* long name */
 
             if (entry[0] == '.' && entry[1] == '.') {
-                uint32_t ch = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
-                uint32_t cl = ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-                parent = ch | cl;
+                parent = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                         ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
                 break;
             }
         }
 
         free(buf);
 
-        if (parent == 0) break; /* can't find parent -> abort */
+        /* In FAT32, if parent is 0, it means the parent is the root directory */
+        if (parent == 0) {
+            parent = root;
+        }
 
         /* Now scan parent directory to find the entry whose cluster == cur
          * That entry's name is the segment we need to prepend. */
@@ -729,9 +735,8 @@ CurrentDirectory getcwd( FileSystem *fs ) {
             if ((attr & 0x0F) == 0x0F) continue; /* long name */
 
             /* Extract cluster of this entry */
-            uint32_t ch = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
-            uint32_t cl = ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-            uint32_t ent_cluster = ch | cl;
+            uint32_t ent_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                                   ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
             if (ent_cluster == cur) {
 
@@ -946,11 +951,8 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
 
         //Check if name matches
         if (memcmp(entry, short_name, 11) == 0) {
-            uint32_t cluster_high = ((uint32_t)entry[21] << 16) | ((uint32_t)entry[20] << 24);
-
-            uint32_t cluster_low = ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-
-            uint32_t start_cluster = cluster_high | cluster_low;
+            uint32_t start_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                                     ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
             free(buf);
             return start_cluster;
