@@ -2,18 +2,17 @@
 #include <stdio.h>
 
 //-1 if open , 0 if not open
-static size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
-
-    printf("%i" , startCluster);
+size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
 
     for ( size_t i = 0 ; i < 10 ; i++ ) {
-        if( files->files[i].startCluster == startCluster ) {
+        if( files->files[i].open == 1 && files->files[i].startCluster == startCluster ) {
             return -1;
         }
     }
 
     return 0;
 }
+
 
 struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 
@@ -67,7 +66,12 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint3
     return index;
 }
 
+//returns -1 on error, otherwise index of closed file
 size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
+
+    if( checkIsOpen( startCluster , files ) == 0 ) {
+        return -1;
+    }
 
     size_t index = -1;
 
@@ -127,3 +131,56 @@ size_t getReadWrite( tokenlist* tokens  ) {
     return -1;
 }
 
+
+//TODO: fix jump opn unintialized balues issue with valgrind
+void printOpenFiles( struct OpenFiles* files ) {
+
+    size_t count = 0; 
+
+    for ( size_t i = 0 ; i < 10 ; i++ ) {
+
+        if( files->files[i].open == 1 ) {
+            count++;
+        }
+    }
+
+    if( count == 0 ){
+        printf("No open files...\n");
+        return;
+    } 
+
+    printf("INDEX\tNAME\tMODE\tOFFSET\tPATH\n");
+
+    for ( size_t i = 0 ; i < 10 ; i++ ) {
+
+        if( files->files[i].open == 0 ) { //not open
+            continue;
+        }
+
+        char mode[3];
+
+        if( files->files[i].permissions == 1) {
+
+            char temp[2] = { 'r' , '\0' };
+
+            strncpy( mode , temp , 2 );
+        }
+        if( files->files[i].permissions == 2 ) {
+
+            char temp[2] = { 'r' , '\0' };
+
+            strncpy( mode , temp , 2 );
+        }
+        if( files->files[i].permissions == 3 ) {
+
+            char temp[3] = { 'r' , 'w' , '\0' };
+
+            strncpy( mode , temp , 3 );
+        }
+
+        if( files->files[i].open == 1 ) {
+            printf("%lu\t%s\t%s\t%u\t%s%s\n" , files->files[i].index , files->files[i].fileName , mode , files->files[i].offset , files->files[i].filePath , files->files[i].fileName);
+        }
+    }
+
+}

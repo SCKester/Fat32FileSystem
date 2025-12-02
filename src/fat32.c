@@ -663,8 +663,6 @@ CurrentDirectory getcwd( FileSystem *fs ) {
         char* s = (char*) malloc(2);
 
         if (s) { s[0] = '/'; s[1] = '\0'; }
-
-        printf("here");
         
         directory.size = 2;
 
@@ -983,4 +981,4 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
 
     return 0; 
 }
- 
+

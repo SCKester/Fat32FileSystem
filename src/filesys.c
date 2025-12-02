@@ -147,6 +147,35 @@ int main(int argc, char *argv[]) {
 
                 }
             }
+            else if ( strcmp( cmd , "close") == 0 ) {
+
+                if( tokens->size != 2 ) {
+                    printf("Error: usage close [FILENAME]\n");
+                }
+                else {
+
+                    if( checkExists( tokens->items[1] , &fs ) == -1 || checkIsFile( tokens->items[1] , &fs ) == -1 ) {
+                        printf("Error: file does not exist - maybe it is a directory?\n");
+                    }
+                    else {
+                        //file exists and is a fikle indeed check if open?
+
+                        uint32_t startCluster = getStartCluster( tokens->items[1] , &fs );
+
+                        if( checkIsOpen( startCluster , &openFiles ) == 0 ) { //file not open , error
+                            printf("Error: file is not open.\n");
+                        }
+                        else {
+                            //file is open and a file, we can close it
+                            if( closeFile( &openFiles , startCluster ) == -1)
+                                printf("Error: cannot close file...\n");
+                        }
+                    }
+                }
+            }
+            else if ( strcmp( cmd , "lsof" ) == 0 ) {
+                printOpenFiles( &openFiles );
+            }
             else {
                 printf("Error: unknown command '%s'\n", cmd);
             }
