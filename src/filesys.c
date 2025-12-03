@@ -174,7 +174,56 @@ int main(int argc, char *argv[]) {
                 }
             }
             else if ( strcmp( cmd , "lsof" ) == 0 ) {
-                printOpenFiles( &openFiles );
+
+                if( tokens->size != 1 ) {
+                    printf("Error: usage, lsof...\n");
+                }
+                else {
+
+                    printOpenFiles( &openFiles );
+                }
+            }
+            else if ( strcmp( cmd , "lseek") == 0 ) {
+
+                if( tokens->size != 3 ) {
+                    printf("Error: usage - lseek [FILENAME] [OFFSET]\n");
+                }
+                else {
+
+                    if( checkIsFile( tokens->items[1] , &fs ) == -1 ) {
+                        printf("Error: file does not exist.");
+                    }
+                    else {
+
+                        char* endptr = NULL;
+                        
+                        uint32_t newOffset = strtoull( tokens->items[2] , &endptr , 10);
+
+                        if ( strcmp( endptr , "\0" ) != 0 ) {
+                            printf("Error: invalid offset number: %s , offset is not numeric\n" , tokens->items[2] );
+                        }
+                        else {
+
+                            if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles ) == 0 ) { //file not open, error
+                                printf("Error: file, %s is not open in cwd\n" , tokens->items[2] );
+                            }
+                            else {
+
+                                //file is now understood to be open and in cwd, offset is also valid assumed
+                                //now check if offset larger than file
+                                if( newOffset > getFileSize( tokens->items[1] , &fs ) ) {
+                                    printf("Error: offset %s larger than file size %u\n" , tokens->items[1] , getFileSize( tokens->items[2] , &fs ) );
+                                }
+                                else {
+                                    //we can now write offset to oopen file
+                                    if( writeFileOffset( &openFiles , getStartCluster( tokens->items[1] , &fs ) , newOffset ) == -1 ) {
+                                        printf("Error: unable to write offset to file.");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             else {
                 printf("Error: unknown command '%s'\n", cmd);

@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _POSIX_C_SOURCE 200809L //HUGH: strdup support cross-compiler because why????
 #include "fat32.h"
 #include <string.h>
 #include <stdio.h>
@@ -645,7 +645,7 @@ bool fs_cd(FileSystem *fs, const char *dirname) {
 /* getcwd()
  * Builds a full path from the current working directory by walking up
  * the directory tree following the ".." entries until the root cluster.
- * Returns a dynamically allocatew c string and its size ( caller must free c string ) containing the
+ * Returns a dynamically allocatew c string and its size ( caller must free ) containing the
  * path in the form "/dir1/dir2". root returns "/".
 */
 
@@ -856,8 +856,8 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 }
 
 /* checkExists()
- * Returns 0 if a file/directory with `filename` exists in the current
- * working directory (`fs->cwd_cluster`). Returns -1 on error or
+ * Returns 0 if a file/directory with filename exists in the current
+ * working directory (fs->cwd_cluster). Returns -1 on error or
  * if it does not exist.
  */
 size_t checkExists(char* filename, FileSystem* fs) {
@@ -883,6 +883,7 @@ size_t checkExists(char* filename, FileSystem* fs) {
  * it does not exist, is a directory, or on error.
  */
 size_t checkIsFile(char* filename, FileSystem* fs) {
+
     if (!filename || !fs || !fs->image) 
         return -1;
 
@@ -933,7 +934,7 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
 
 /* getStartCluster()
  * returns the starting cluster number of the file/directory entry with name
- * `filename` in the current working directory. Returns 0 if not found or on error.
+ * 'filename' in the current working directory. Returns 0 if not found or on error.
  */
 uint32_t getStartCluster(char* filename, FileSystem* fs) {
 
@@ -976,6 +977,69 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
 
             free(buf);
             return start_cluster;
+        }
+    }
+
+    free(buf);
+
+    return 0; 
+}
+
+/* getFileSize()
+ * Returns the size (in bytes) of the file with name "filename" in the current
+ * working directory of 'fs'. Assumes the file exists. Returns 0 if not found
+ * or on error.
+ */
+uint32_t getFileSize(char* filename, FileSystem* fs) {
+
+    if (!filename || !fs || !fs->image) 
+        return 0;
+
+    char short_name[11];
+
+    build_short_name(short_name, filename);
+
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
+    unsigned char *buf = (unsigned char *) malloc(cluster_size);
+
+    if (!buf) 
+        return 0;
+
+    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
+
+    if (fseek(fs->image, dir_offset, SEEK_SET) != 0 ||
+        fread(buf, 1, cluster_size, fs->image) != cluster_size) {
+
+        free(buf);
+        return 0;
+    }
+
+    //Scan for the entry 
+    for (uint32_t off = 0; off < cluster_size; off += 32) {
+
+        unsigned char* entry = buf + off;
+
+        if (entry[0] == 0x00) 
+            break;           
+        if (entry[0] == 0xE5) 
+            continue;        
+
+        unsigned char attr = entry[11];
+
+        if ((attr & 0x0F) == 0x0F) 
+            continue;  
+
+        //check if name matches
+        if (memcmp(entry, short_name, 11) == 0) {
+            //file size is stored at bytes 28-31
+
+            uint32_t file_size = read_le32( entry + 28 );
+
+            printf("file_size : %u\n" , file_size); //TODO:remove for debug only
+            free(buf);
+            return file_size;
         }
     }
 

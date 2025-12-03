@@ -75,3 +75,5 @@ size_t checkExists(char* filename, FileSystem* fs);
 size_t checkIsFile(char* filename, FileSystem* fs);
 
 uint32_t getStartCluster(char* filename, FileSystem* fs);
+
+uint32_t getFileSize(char* filename, FileSystem* fs);

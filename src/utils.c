@@ -184,3 +184,20 @@ void printOpenFiles( struct OpenFiles* files ) {
     }
 
 }
+
+//writes file offset and returns 0 on success writing , -1 otherwise if fail
+size_t writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset ) {
+
+    size_t success = -1;
+
+    for ( size_t i = 0 ; i < 10 ; i++ ) {
+
+        if( startCluster == files->files[i].startCluster ) {
+            files->files[i].offset = newOffset;
+            success = 0;
+            break;
+        }
+    }
+
+    return success;
+}
