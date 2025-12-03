@@ -320,12 +320,6 @@ static int dir_scan_for_entry(FileSystem *fs,
 
 /* write_directory_entry()
  * Writes a single 32-byte FAT directory entry.
- * The entry includes:
- *  - 11-byte short name (uppercased, padded with spaces)
- *  - attribute byte
- *  - first cluster (split between offset 20–21 and 26–27)
- *  - file size (only meaningful for regular files)
- *
  * Used by both fs_mkdir() and fs_creat().
  */
 static void write_directory_entry(FileSystem *fs,
@@ -1039,7 +1033,6 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
 
             uint32_t file_size = read_le32( entry + 28 );
 
-            printf("file_size : %u\n" , file_size); //TODO:remove for debug only
             free(buf);
             return file_size;
         }
@@ -1051,8 +1044,8 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
 }
 
 /* readFile()
- * Reads up to `sizeToRead` bytes from the file `filename` in the current
- *working directory of `fs`, starting at byte offset `startOffset` within
+ * Reads up to 'sizeToRead' bytes from the file 'filename' in the current
+ *working directory of fs', starting at byte offset 'startOffset' within
  * the file. Data is written to stdout. Returns the number of bytes actually
  * read (may be less than requested if EOF is reached).
  */
@@ -1066,7 +1059,6 @@ uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, Fil
     if (startOffset >= file_size) 
         return 0;
 
-    /* clamp requested size to remaining bytes in file */
     uint32_t remaining = file_size - startOffset;
     uint32_t to_read = (sizeToRead < remaining) ? sizeToRead : remaining;
 
@@ -1076,13 +1068,13 @@ uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, Fil
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
-    /* Find starting cluster for the file */
+
     uint32_t cur_cluster = getStartCluster(filename, fs);
 
     if (cur_cluster == 0) 
         return 0;
 
-    /* Advance to the cluster that contains startOffset */
+    //Advance to the cluster that contains startOffset 
     uint32_t cluster_index = startOffset / cluster_size;
     uint32_t offset_in_cluster = startOffset % cluster_size;
 
@@ -1091,7 +1083,6 @@ uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, Fil
         uint32_t next = read_fat_entry(fs, cur_cluster);
 
         if (next >= FAT32_EOC) {
-            /* ran out of clusters before reaching offset */
             return 0;
         }
 
@@ -1113,19 +1104,20 @@ uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, Fil
             break;
 
         uint32_t can_read = cluster_size - offset_in_cluster;
+
         uint32_t want = to_read - bytes_read;
+
         uint32_t n = (want < can_read) ? want : can_read;
 
         if (fread(buf, 1, n, fs->image) != n) 
             break;
 
-        /* write to stdout */
+
         size_t written = fwrite(buf, 1, n, stdout);
-        (void)written; /* ignore short writes to stdout here */
+        (void) written; 
 
         bytes_read += n;
 
-        /* after first cluster, subsequent clusters start at offset 0 */
         offset_in_cluster = 0;
 
         if (bytes_read < to_read) {

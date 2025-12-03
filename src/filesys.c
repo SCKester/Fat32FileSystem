@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
             }
             else if ( strcmp( cmd , "open" ) == 0 ) {
                 
-                if( tokens->size != 3 || getReadWrite( tokens ) == -1 ) {
+                if( tokens->size != 3 || getReadWrite( tokens ) == 0 ) {
                     printf("Error: usage: open [FILENAME] [FLAGS]\n");
                 }
                 else {

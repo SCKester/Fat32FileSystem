@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 //-1 if open , 0 if not open
-size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
+int checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
 
     for ( size_t i = 0 ; i < 10 ; i++ ) {
         if( files->files[i].open == 1 && files->files[i].startCluster == startCluster ) {
@@ -22,7 +22,8 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
         files.files[i].index = i;
         files.files[i].offset = 0; 
         files.files[i].open = 0;
-        files.files[i].startCluster = -1;
+        files.files[i].startCluster = 0;
+        files.files[i].permissions = -1;
 
     }
 
@@ -32,7 +33,7 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 //we can do a bit of cheating here because we know files will only be opened in the cwd
 //and that all files will only be scanned in the cwd
 // -1 if failed , 0 if succeeded
-size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint32_t startCluster , CurrentDirectory direc ) {
+int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t startCluster , CurrentDirectory direc ) {
     
     size_t index = -1;
 
@@ -52,8 +53,8 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint3
     }
 
     strcpy( files->files[index].fileName , fileName );
-    
-    files->files->permissions = mode;
+
+    files->files[index].permissions = mode;
 
     files->files[index].offset = 0;
     files->files[index].open = 1;
@@ -69,7 +70,7 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint3
 }
 
 //returns -1 on error, otherwise index of closed file
-size_t closeFile( struct OpenFiles* files , uint32_t startCluster ) {
+int closeFile( struct OpenFiles* files , uint32_t startCluster ) {
 
     if( checkIsOpen( startCluster , files ) == 0 ) {
         return -1;
@@ -113,7 +114,7 @@ size_t getReadWrite( tokenlist* tokens  ) {
     strcmp( tokens->items[2] , "-w" ) != 0 && 
     strcmp( tokens->items[2] , "-rw" ) != 0 && 
     strcmp( tokens->items[2] , "-wr" ) != 0 ) {
-        return -1;
+        return 0;
     }
 
     if( strcmp( tokens->items[2] , "-rw" ) == 0 || 
@@ -130,7 +131,7 @@ size_t getReadWrite( tokenlist* tokens  ) {
     }
 
 
-    return -1;
+    return 0;
 }
 
 
@@ -159,36 +160,21 @@ void printOpenFiles( struct OpenFiles* files ) {
             continue;
         }
 
-        char mode[3];
-
-        if( files->files[i].permissions == 1) {
-
-            char temp[2] = { 'r' , '\0' };
-
-            strncpy( mode , temp , 2 );
-        }
-        if( files->files[i].permissions == 2 ) {
-
-            char temp[2] = { 'r' , '\0' };
-
-            strncpy( mode , temp , 2 );
-        }
-        if( files->files[i].permissions == 3 ) {
-
-            char temp[3] = { 'r' , 'w' , '\0' };
-
-            strncpy( mode , temp , 3 );
-        }
+        int permission = files->files[i].permissions;
 
         if( files->files[i].open == 1 ) {
-            printf("%lu\t%s\t%s\t%u\t%s%s\n" , files->files[i].index , files->files[i].fileName , mode , files->files[i].offset , files->files[i].filePath , files->files[i].fileName);
+            printf("%lu\t%s\t%s\t%u\t%s%s\n" , files->files[i].index , 
+                files->files[i].fileName , 
+                permission == 1 ? "r" : permission == 2 ? "w" : "rw", 
+                files->files[i].offset , files->files[i].filePath , 
+                files->files[i].fileName);
         }
     }
 
 }
 
 //writes file offset and returns 0 on success writing , -1 otherwise if fail
-size_t writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset ) {
+int writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset ) {
 
     size_t success = -1;
 
