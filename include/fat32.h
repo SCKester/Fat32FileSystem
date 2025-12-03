@@ -77,3 +77,5 @@ size_t checkIsFile(char* filename, FileSystem* fs);
 uint32_t getStartCluster(char* filename, FileSystem* fs);
 
 uint32_t getFileSize(char* filename, FileSystem* fs);
+
+uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, FileSystem* fs);

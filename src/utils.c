@@ -23,6 +23,7 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
         files.files[i].offset = 0; 
         files.files[i].open = 0;
         files.files[i].startCluster = -1;
+
     }
 
     return files;
@@ -51,6 +52,7 @@ size_t openFile( struct OpenFiles* files ,  char* fileName , size_t mode , uint3
     }
 
     strcpy( files->files[index].fileName , fileName );
+    
     files->files->permissions = mode;
 
     files->files[index].offset = 0;
@@ -124,7 +126,7 @@ size_t getReadWrite( tokenlist* tokens  ) {
     }
 
     if( strcmp( tokens->items[2] , "-r" ) == 0 ) {
-        return 2;
+        return 1;
     }
 
 
@@ -201,3 +203,19 @@ size_t writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32
 
     return success;
 }
+
+//returns NULL on not found
+OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster ) {
+
+    OpenFile* file = NULL;
+
+    for ( size_t i = 0 ; i < 10 ; i++ ) {
+        if( files->files[i].startCluster == startCluster ) {
+            file = & files->files[i];
+            break;
+        }
+    }
+
+    return file;
+}
+

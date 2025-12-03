@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
                                 else {
                                     //we can now write offset to oopen file
                                     if( writeFileOffset( &openFiles , getStartCluster( tokens->items[1] , &fs ) , newOffset ) == -1 ) {
-                                        printf("Error: unable to write offset to file.");
+                                        printf("Error: unable to write offset to file.\n");
                                     }
                                 }
                             }
@@ -225,10 +225,63 @@ int main(int argc, char *argv[]) {
                     }
                 }
             }
+            else if ( strcmp( cmd , "read" ) == 0 ) {
+
+                if( tokens->size != 3 ) {
+                    printf("Error: Usage , read [filename] [size]\n");
+                    goto skip;
+                }
+
+                char* endptr = NULL;
+                
+                uint32_t bytesToRead = strtoull( tokens->items[2] , &endptr , 10);
+
+                if( tokens->size != 3  || strcmp( endptr , "\0") != 0 ) {
+                    printf("Error: Usage - read [FILENAME] [SIZE]\n");
+                }
+                else {
+
+                    if( checkIsFile( tokens->items[1] , &fs ) == -1 ) {
+                        printf("Error: file does not exist...\n");
+                    }
+                    else {
+
+                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles ) == 0 ) {
+                            printf("Error: file is not open...\n");
+                        }
+                        else {
+                            //file is assumed open and exdsiting in cwd
+                            //we now read from file and update offset
+
+                            //now check open to read
+
+                            OpenFile* file = getOpenFile( &openFiles , 
+                                getStartCluster( tokens->items[1] , &fs ) );
+
+                            if( file == NULL || ( file->permissions != 1 && file->permissions != 3 ) ) {
+
+                                if( file == NULL) {
+                                    printf("fick\n");
+                                }
+                                //file not open somehow or file not oopened with read
+                                printf("Error: file not opened in read mode.\n");
+                            }
+                            else {
+                                uint32_t bytesRead = readFile( file->offset , bytesToRead , tokens->items[1] , &fs );
+
+                                file->offset += bytesRead;
+                            }
+                        }
+                    }
+                }
+                
+            }
             else {
                 printf("Error: unknown command '%s'\n", cmd);
             }
         }
+
+        skip:
 
         free_tokens(tokens);
         free(input);

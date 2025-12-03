@@ -38,3 +38,5 @@ size_t checkIsOpen( uint32_t startCluster , struct OpenFiles* files );
 void printOpenFiles( struct OpenFiles* files );
 
 size_t writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset );
+
+OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster );

@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdbool.h> //Hugh: I have no idea why compiler was letting you use bool without this... C DOES NOT HAVE A BOOL DATATYPE NATIVELY
 
+//HUGH: TODO: we really should jujst make a uint32_t getentry( char* filename) function instaed of just copying same logic for half of our helpers, or not...
+
 /* Little-endian readers */
 static uint16_t read_le16(const unsigned char *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -934,7 +936,7 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
 
 /* getStartCluster()
  * returns the starting cluster number of the file/directory entry with name
- * 'filename' in the current working directory. Returns 0 if not found or on error.
+ *'filename' in the current working directory. Returns 0 if not found or on error.
  */
 uint32_t getStartCluster(char* filename, FileSystem* fs) {
 
@@ -1046,5 +1048,98 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
     free(buf);
 
     return 0; 
+}
+
+/* readFile()
+ * Reads up to `sizeToRead` bytes from the file `filename` in the current
+ *working directory of `fs`, starting at byte offset `startOffset` within
+ * the file. Data is written to stdout. Returns the number of bytes actually
+ * read (may be less than requested if EOF is reached).
+ */
+uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, FileSystem* fs) {
+
+    if (!filename || !fs || !fs->image) 
+        return 0;
+
+    uint32_t file_size = getFileSize(filename, fs);
+
+    if (startOffset >= file_size) 
+        return 0;
+
+    /* clamp requested size to remaining bytes in file */
+    uint32_t remaining = file_size - startOffset;
+    uint32_t to_read = (sizeToRead < remaining) ? sizeToRead : remaining;
+
+    if (to_read == 0) 
+        return 0;
+
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
+    /* Find starting cluster for the file */
+    uint32_t cur_cluster = getStartCluster(filename, fs);
+
+    if (cur_cluster == 0) 
+        return 0;
+
+    /* Advance to the cluster that contains startOffset */
+    uint32_t cluster_index = startOffset / cluster_size;
+    uint32_t offset_in_cluster = startOffset % cluster_size;
+
+    for (uint32_t i = 0; i < cluster_index; ++i) {
+
+        uint32_t next = read_fat_entry(fs, cur_cluster);
+
+        if (next >= FAT32_EOC) {
+            /* ran out of clusters before reaching offset */
+            return 0;
+        }
+
+        cur_cluster = next;
+    }
+
+    unsigned char *buf = (unsigned char*) malloc(cluster_size);
+
+    if (!buf) 
+        return 0;
+
+    uint32_t bytes_read = 0;
+
+    while (bytes_read < to_read) {
+
+        long cluster_off = cluster_to_offset(fs, cur_cluster);
+
+        if (fseek(fs->image, cluster_off + offset_in_cluster, SEEK_SET) != 0) 
+            break;
+
+        uint32_t can_read = cluster_size - offset_in_cluster;
+        uint32_t want = to_read - bytes_read;
+        uint32_t n = (want < can_read) ? want : can_read;
+
+        if (fread(buf, 1, n, fs->image) != n) 
+            break;
+
+        /* write to stdout */
+        size_t written = fwrite(buf, 1, n, stdout);
+        (void)written; /* ignore short writes to stdout here */
+
+        bytes_read += n;
+
+        /* after first cluster, subsequent clusters start at offset 0 */
+        offset_in_cluster = 0;
+
+        if (bytes_read < to_read) {
+
+            uint32_t next = read_fat_entry(fs, cur_cluster);
+
+            if (next >= FAT32_EOC) 
+                break;
+
+            cur_cluster = next;
+        }
+    }
+
+    free(buf);
+    return bytes_read;
 }
 
