@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "fat32.h"
+#include "utils.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -981,6 +982,289 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
 
     free(buf);
 
-    return 0; 
+    return 0;
+}
+
+/*
+ * find_directory_entry_offset()
+ * Searches for a file/directory entry in the current working directory.
+ * Returns the byte offset of the entry in the image file, or -1 if not found.
+ * Also sets *out_cluster to the starting cluster and *out_attr to attributes.
+ */
+static long find_directory_entry_offset(FileSystem *fs, const char short_name[11],
+                                         uint32_t *out_cluster, uint8_t *out_attr) {
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
+    unsigned char *buf = (unsigned char *)malloc(cluster_size);
+    if (!buf) return -1;
+
+    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
+    if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
+        free(buf);
+        return -1;
+    }
+
+    if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
+        free(buf);
+        return -1;
+    }
+
+    long entry_offset = -1;
+
+    for (uint32_t off = 0; off < cluster_size; off += 32) {
+        unsigned char *entry = buf + off;
+
+        if (entry[0] == 0x00) break;
+        if (entry[0] == 0xE5) continue;
+
+        unsigned char attr = entry[11];
+        if ((attr & 0x0F) == 0x0F) continue;
+
+        if (memcmp(entry, short_name, 11) == 0) {
+            *out_attr = attr;
+            *out_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                          ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
+            entry_offset = dir_offset + (long)off;
+            break;
+        }
+    }
+
+    free(buf);
+    return entry_offset;
+}
+
+/*
+ * free_cluster_chain()
+ * Frees all clusters in a cluster chain by marking them as free (0x00000000) in the FAT.
+ */
+static void free_cluster_chain(FileSystem *fs, uint32_t start_cluster) {
+    uint32_t cluster = start_cluster;
+
+    while (cluster >= 2 && cluster < 0x0FFFFFF8) {
+        uint32_t next_cluster = read_fat_entry(fs, cluster);
+        write_fat_entry(fs, cluster, 0x00000000);
+        cluster = next_cluster;
+    }
+}
+
+/*
+ * is_directory_empty()
+ * Checks if a directory contains only "." and ".." entries.
+ * Returns true if empty, false otherwise.
+ */
+static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
+    unsigned char *buf = (unsigned char *)malloc(cluster_size);
+    if (!buf) return false;
+
+    long dir_offset = cluster_to_offset(fs, dir_cluster);
+    if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
+        free(buf);
+        return false;
+    }
+
+    if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
+        free(buf);
+        return false;
+    }
+
+    for (uint32_t off = 0; off < cluster_size; off += 32) {
+        unsigned char *entry = buf + off;
+
+        if (entry[0] == 0x00) break;
+        if (entry[0] == 0xE5) continue;
+
+        unsigned char attr = entry[11];
+        if ((attr & 0x0F) == 0x0F) continue;
+
+        /* Skip "." and ".." */
+        if (entry[0] == '.' && (entry[1] == ' ' || entry[1] == '.')) {
+            continue;
+        }
+
+        /* Found a real entry - directory is not empty */
+        free(buf);
+        return false;
+    }
+
+    free(buf);
+    return true;
+}
+
+/*
+ * fs_rm()
+ * Deletes a file from the current working directory.
+ *
+ * Requirements:
+ * - File must exist
+ * - Must be a file (not a directory)
+ * - Must not be currently opened
+ *
+ * Process:
+ * 1. Find the directory entry
+ * 2. Validate it's a file and not open
+ * 3. Mark the entry as deleted (set first byte to 0xE5)
+ * 4. Free all clusters in the file's cluster chain
+ */
+bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files) {
+    if (!filename || filename[0] == '\0') {
+        printf("Error: rm requires a filename\n");
+        return false;
+    }
+
+    size_t len = strlen(filename);
+    if (len == 0 || len > 11) {
+        printf("Error: FILENAME must be 1-11 characters\n");
+        return false;
+    }
+
+    /* Convert to FAT short name */
+    char short_name[11];
+    build_short_name(short_name, filename);
+
+    /* Find the directory entry */
+    uint32_t start_cluster;
+    uint8_t attr;
+    long entry_offset = find_directory_entry_offset(fs, short_name, &start_cluster, &attr);
+
+    if (entry_offset == -1) {
+        printf("Error: file '%s' does not exist\n", filename);
+        return false;
+    }
+
+    /* Check if it's a directory */
+    if (attr & 0x10) {
+        printf("Error: '%s' is a directory\n", filename);
+        return false;
+    }
+
+    /* Check if file is open */
+    if (checkIsOpen(start_cluster, open_files) == -1) {
+        printf("Error: file '%s' is currently open\n", filename);
+        return false;
+    }
+
+    /* Mark directory entry as deleted (0xE5) */
+    unsigned char deleted_marker = 0xE5;
+    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
+        printf("Error: failed to seek to directory entry\n");
+        return false;
+    }
+    if (fwrite(&deleted_marker, 1, 1, fs->image) != 1) {
+        printf("Error: failed to mark entry as deleted\n");
+        return false;
+    }
+
+    /* Free all clusters in the cluster chain */
+    if (start_cluster >= 2) {
+        free_cluster_chain(fs, start_cluster);
+    }
+
+    /* Flush changes to disk */
+    fflush(fs->image);
+
+    return true;
+}
+
+/*
+ * fs_rmdir()
+ * Removes a directory from the current working directory.
+ *
+ * Requirements:
+ * - Directory must exist
+ * - Must be a directory (not a file)
+ * - Must be empty (only contains "." and "..")
+ * - No files in it can be opened
+ *
+ * Process:
+ * 1. Find the directory entry
+ * 2. Validate it's a directory and is empty
+ * 3. Check no files in it are open
+ * 4. Mark the entry as deleted (set first byte to 0xE5)
+ * 5. Free the directory's cluster
+ */
+bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files) {
+    if (!dirname || dirname[0] == '\0') {
+        printf("Error: rmdir requires a directory name\n");
+        return false;
+    }
+
+    size_t len = strlen(dirname);
+    if (len == 0 || len > 11) {
+        printf("Error: DIRNAME must be 1-11 characters\n");
+        return false;
+    }
+
+    /* Convert to FAT short name */
+    char short_name[11];
+    build_short_name(short_name, dirname);
+
+    /* Find the directory entry */
+    uint32_t start_cluster;
+    uint8_t attr;
+    long entry_offset = find_directory_entry_offset(fs, short_name, &start_cluster, &attr);
+
+    if (entry_offset == -1) {
+        printf("Error: directory '%s' does not exist\n", dirname);
+        return false;
+    }
+
+    /* Check if it's not a directory */
+    if (!(attr & 0x10)) {
+        printf("Error: '%s' is not a directory\n", dirname);
+        return false;
+    }
+
+    /* Check if directory is empty */
+    if (!is_directory_empty(fs, start_cluster)) {
+        printf("Error: directory '%s' is not empty\n", dirname);
+        return false;
+    }
+
+    /* Check if any files in the directory are open
+     * We need to check all open files to see if their path starts with this directory */
+    for (int i = 0; i < 10; i++) {
+        if (open_files->files[i].open == 1) {
+            /* Get current directory path */
+            CurrentDirectory cwd = getcwd(fs);
+
+            /* Build the path to this directory */
+            char dir_path[512];
+            snprintf(dir_path, sizeof(dir_path), "%s/%s", cwd.cwd, dirname);
+
+            /* Check if any open file's path starts with this directory path */
+            if (strncmp(open_files->files[i].filePath, dir_path, strlen(dir_path)) == 0) {
+                printf("Error: directory '%s' contains an open file\n", dirname);
+                free(cwd.cwd);
+                return false;
+            }
+
+            free(cwd.cwd);
+        }
+    }
+
+    /* Mark directory entry as deleted (0xE5) */
+    unsigned char deleted_marker = 0xE5;
+    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
+        printf("Error: failed to seek to directory entry\n");
+        return false;
+    }
+    if (fwrite(&deleted_marker, 1, 1, fs->image) != 1) {
+        printf("Error: failed to mark entry as deleted\n");
+        return false;
+    }
+
+    /* Free the directory's cluster */
+    if (start_cluster >= 2) {
+        free_cluster_chain(fs, start_cluster);
+    }
+
+    /* Flush changes to disk */
+    fflush(fs->image);
+
+    return true;
 }
 
