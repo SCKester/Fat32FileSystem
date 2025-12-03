@@ -163,11 +163,15 @@ void printOpenFiles( struct OpenFiles* files ) {
         int permission = files->files[i].permissions;
 
         if( files->files[i].open == 1 ) {
-            printf("%lu\t%s\t%s\t%u\t%s%s\n" , files->files[i].index , 
+            printf("%lu\t%s\t%s\t%u\t%s%s%s%s\n" , files->files[i].index , 
                 files->files[i].fileName , 
                 permission == 1 ? "r" : permission == 2 ? "w" : "rw", 
-                files->files[i].offset , files->files[i].filePath , 
-                files->files[i].fileName);
+                files->files[i].offset , 
+                files->files[i].filePath , 
+                strcmp(files->files[i].filePath , "/") == 0 ? "" : "/" ,
+                files->files[i].fileName , 
+                "/"
+            );
         }
     }
 

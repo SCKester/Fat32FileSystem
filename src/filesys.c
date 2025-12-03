@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
         cwd = getcwd( &fs );
 
-        printf("%s%s> ", fs.image_name, cwd.cwd );
+        printf("%s%s> ", fs.image_name, cwd.cwd);
         fflush(stdout);
 
         char *input = get_input();

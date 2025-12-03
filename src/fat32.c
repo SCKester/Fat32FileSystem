@@ -736,9 +736,13 @@ CurrentDirectory getcwd( FileSystem *fs ) {
 
         for (uint32_t off = 0; off < cluster_size; off += 32) {
             unsigned char *entry = buf + off;
+
             if (entry[0] == 0x00) break;
+
             if (entry[0] == 0xE5) continue;
+
             unsigned char attr = entry[11];
+            
             if ((attr & 0x0F) == 0x0F) continue; // long name
 
             // Extract cluster of this entry 
@@ -1169,19 +1173,7 @@ bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files) {
 /*
  * fs_rmdir()
  * Removes a directory from the current working directory.
- *
- * Requirements:
- * - Directory must exist
- * - Must be a directory (not a file)
- * - Must be empty (only contains "." and "..")
- * - No files in it can be opened
- *
- * Process:
- * 1. Find the directory entry
- * 2. Validate it's a directory and is empty
- * 3. Check no files in it are open
- * 4. Mark the entry as deleted (set first byte to 0xE5)
- * 5. Free the directory's cluster
+ * 
  */
 bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files) {
     if (!dirname || dirname[0] == '\0') {
