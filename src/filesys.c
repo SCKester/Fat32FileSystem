@@ -276,6 +276,35 @@ int main(int argc, char *argv[]) {
                 }
                 
             }
+            else if (strcmp(cmd, "rm") == 0) {
+                /*
+                * rm [FILENAME]
+                * Deletes a file from the current working directory.
+                * Error if file does not exist, is a directory, or is opened.
+                */
+                if (tokens->size != 2) {
+                    printf("Error: usage: rm [FILENAME]\n");
+                } else {
+                    if (!fs_rm(&fs, tokens->items[1], &openFiles)) {
+                        /* fs_rm prints its own error message */
+                    }
+                }
+            }
+            else if (strcmp(cmd, "rmdir") == 0) {
+                /*
+                * rmdir [DIRNAME]
+                * Removes a directory from the current working directory.
+                * Error if directory does not exist, is not a directory,
+                * is not empty, or contains open files.
+                */
+                if (tokens->size != 2) {
+                    printf("Error: usage: rmdir [DIRNAME]\n");
+                } else {
+                    if (!fs_rmdir(&fs, tokens->items[1], &openFiles)) {
+                        /* fs_rmdir prints its own error message */
+                    }
+                }
+            }
             else {
                 printf("Error: unknown command '%s'\n", cmd);
             }

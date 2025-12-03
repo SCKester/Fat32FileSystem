@@ -73,9 +73,19 @@ CurrentDirectory getcwd(FileSystem *fs);
 size_t checkExists(char* filename, FileSystem* fs);
 
 size_t checkIsFile(char* filename, FileSystem* fs);
-
 uint32_t getStartCluster(char* filename, FileSystem* fs);
 
 uint32_t getFileSize(char* filename, FileSystem* fs);
 
 uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, FileSystem* fs);
+
+/* Forward declaration */
+struct OpenFiles;
+
+/* Part 6: Delete commands */
+/* Delete a file from the current working directory */
+bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files);
+
+/* Remove a directory from the current working directory */
+bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files);
+
