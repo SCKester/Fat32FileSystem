@@ -53,14 +53,12 @@ bool fs_mount(FileSystem *fs, const char *image_path) {
     bpb->fat_size_sectors = read_le32(&boot[0x24]);
     bpb->root_cluster = boot[0x2C];
 
-     /* Compute commonly used layout values */
-    uint32_t bytes_per_sector    = bpb->bytes_per_sector;
     uint32_t sectors_per_cluster = bpb->sectors_per_cluster;
 
-    /* Sector index at which the first FAT begins */
+    /*start*/
     fs->fat_start_sector = bpb->reserved_sector_count;
 
-    /* Sector index at which the data region (cluster 2) begins */
+    /* data start */
     fs->first_data_sector =
         bpb->reserved_sector_count + (bpb->num_fats * bpb->fat_size_sectors);
 
@@ -147,15 +145,6 @@ static void build_short_name(char dest[11], const char *name) {
 }
 
 /* Read a FAT32 entry for a given cluster.
- *
- * Each FAT32 entry is 32 bits.
- * FAT offset = cluster * 4
- * FAT sector = fat_start_sector + (fat_offset / bytes_per_sector)
- * entry offset = fat_offset % bytes_per_sector
- *
- * fumction returns:
- *   - next cluster in chain
- *   - FAT32_EOC when at end of cluster chain
  */
 static uint32_t read_fat_entry(FileSystem *fs, uint32_t cluster) {
     const Fat32BootSector *bpb = &fs->bpb;
@@ -474,63 +463,72 @@ bool fs_creat(FileSystem *fs, const char *name) {
 
 /* 
  * Lists all directory entries in the current working directory.
- * Prints the name field for each directory and file, including "." and "..".
- * Skips deleted entries (0xE5) and long filename entries (0x0F).
  */
-void fs_ls(const FileSystem *fs) {
+void fs_ls( FileSystem *fs ) {
+
+    if (!fs || !fs->image) 
+        return;
+
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
     unsigned char *buf = (unsigned char *)malloc(cluster_size);
+
     if (!buf) {
         printf("Error: memory allocation failed\n");
         return;
     }
 
-    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
-    if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
-        printf("Error: failed to seek to directory cluster\n");
-        free(buf);
-        return;
-    }
+    uint32_t cur = fs->cwd_cluster;
 
-    if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
-        printf("Error: failed to read directory cluster\n");
-        free(buf);
-        return;
-    }
+    while (1) {
 
-    /* Iterate through all 32-byte directory entries */
-    for (uint32_t off = 0; off < cluster_size; off += 32) {
-        unsigned char *entry = buf + off;
+        long dir_offset = cluster_to_offset(fs, cur);
 
-        /* 0x00 means this and all following entries are free */
-        if (entry[0] == 0x00) {
+        if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
+            printf("Error: failed to seek to directory cluster %u\n", cur);
+            break;
+        }
+        if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
+            printf("Error: failed to read directory cluster %u\n", cur);
             break;
         }
 
-        /* 0xE5 means deleted, skip */
-        if (entry[0] == 0xE5) {
-            continue;
+        for (uint32_t off = 0; off < cluster_size; off += 32) {
+
+            unsigned char *entry = buf + off;
+
+            if (entry[0] == 0x00) 
+                goto done;
+            if (entry[0] == 0xE5) 
+                continue;
+
+            unsigned char attr = entry[11];
+
+            if ((attr & 0x0F) == 0x0F) 
+                continue;
+
+            char name[12];
+            memcpy(name, entry, 11);
+
+            name[11] = '\0';
+
+            printf("%s\n", name);
         }
 
-        /* Skip long filename entries (attribute 0x0F) */
-        unsigned char attr = entry[11];
-        if ((attr & 0x0F) == 0x0F) {
-            continue;
-        }
+        // next clus
+        uint32_t next = read_fat_entry((FileSystem*)fs, cur);
 
-        /* Extract and print the 11-byte short name */
-        char name[12];
-        memcpy(name, entry, 11);
-        name[11] = '\0';
+        if (next == FAT32_EOC || next == 0) 
+            break;
 
-        /* Print the name (it will have trailing spaces, but that's okay) */
-        printf("%s\n", name);
+        cur = next;
     }
 
+done:
     free(buf);
 }
+
 
 /* 
  * Changes the current working directory to DIRNAME.

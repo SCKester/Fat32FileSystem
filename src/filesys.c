@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
                 * Lists all directory entries in the current working directory.
                 * Prints the name field for each entry including "." and "..".
                 */
-                fs_ls(&fs);
+                fs_ls_chain( &fs );
             }
             else if (strcmp(cmd, "cd") == 0) {
                 /*
