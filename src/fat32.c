@@ -147,6 +147,7 @@ static void build_short_name(char dest[11], const char *name) {
 /* Read a FAT32 entry for a given cluster.
  */
 static uint32_t read_fat_entry(FileSystem *fs, uint32_t cluster) {
+
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t fat_offset = cluster * 4;
     uint32_t fat_sector = fs->fat_start_sector + (fat_offset / bpb->bytes_per_sector);
@@ -170,6 +171,7 @@ static uint32_t read_fat_entry(FileSystem *fs, uint32_t cluster) {
 
 /* Write FAT32 entry for a given cluster */
 static void write_fat_entry(FileSystem *fs, uint32_t cluster, uint32_t value) {
+
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t fat_offset = cluster * 4;
     uint32_t fat_sector = fs->fat_start_sector + (fat_offset / bpb->bytes_per_sector);
@@ -246,6 +248,7 @@ static void init_directory_cluster(FileSystem *fs,
     free(buf);
 }
 
+//checks free allocation in cluster
 static int dir_scan_for_entry(FileSystem *fs,
                               uint32_t dir_cluster,
                               const char short_name[11],
@@ -307,6 +310,77 @@ static int dir_scan_for_entry(FileSystem *fs,
     return 0;
 }
 
+/*
+* scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting bytes
+* or NULL if not found
+*/
+unsigned char* getEntry(char* filename, FileSystem* fs) {
+    
+    if (!filename || !fs || !fs->image) 
+        return NULL;
+
+    char target[11];
+    build_short_name(target, filename);
+
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
+    unsigned char *buf = (unsigned char*) malloc(cluster_size);
+
+    if (!buf) 
+        return NULL;
+
+    uint32_t cur = fs->cwd_cluster;
+
+    while (1) {
+
+        long dir_offset = cluster_to_offset(fs, cur);
+
+        if (fseek(fs->image, dir_offset, SEEK_SET) != 0) 
+            break;
+        if (fread(buf, 1, cluster_size, fs->image) != cluster_size)
+             break;
+
+        for (uint32_t off = 0; off < cluster_size; off += 32) {
+
+            unsigned char *entry = buf + off;
+
+            if (entry[0] == 0x00) 
+                goto not_found;
+            if (entry[0] == 0xE5) 
+                continue; /* deleted */
+
+            unsigned char attr = entry[11];
+
+            if ((attr & 0x0F) == 0x0F) 
+                continue; /* long name */
+
+            if (memcmp(entry, target, 11) == 0) {
+                
+                unsigned char *ret = (unsigned char*) malloc(32);
+
+                if (ret) 
+                    memcpy(ret, entry, 32);
+
+                free(buf);
+                return ret;
+            }
+        }
+
+
+        uint32_t next = read_fat_entry(fs, cur);
+
+        if (next == 0x0FFFFFFF || next == 0) 
+            break;
+
+        cur = next;
+    }
+
+not_found:
+    free(buf);
+    return NULL;
+}
+
 /* write_directory_entry()
  * Writes a single 32-byte FAT directory entry.
  * Used by both fs_mkdir() and fs_creat().
@@ -350,6 +424,7 @@ static void write_directory_entry(FileSystem *fs,
  * Returns true on success, false on failure.
  */
 bool fs_mkdir(FileSystem *fs, const char *name) {
+
     if (!name || name[0] == '\0') {
         printf("Error: mkdir requires a directory name\n");
         return false;
@@ -367,6 +442,7 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
 
     long free_offset;
     int exists;
+
     if (dir_scan_for_entry(fs, fs->cwd_cluster, short_name,
                            &free_offset, &exists) != 0) {
         printf("Error: failed to read directory\n");
@@ -385,6 +461,7 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
 
     /* Allocate a new cluster for the directory */
     uint32_t new_cluster = allocate_cluster(fs);
+
     if (new_cluster == 0) {
         printf("Error: no free clusters available\n");
         return false;
@@ -853,20 +930,22 @@ CurrentDirectory getcwd( FileSystem *fs ) {
  * if it does not exist.
  */
 size_t checkExists(char* filename, FileSystem* fs) {
+
     if (!filename || !fs) 
         return -1;
 
     char short_name[11];
     build_short_name(short_name, filename);
 
-    long free_offset;
-    int exists;
+    unsigned char* fileEntry = getEntry( filename , fs );
 
-    if (dir_scan_for_entry(fs, fs->cwd_cluster, short_name, &free_offset, &exists) != 0) {
+    if ( fileEntry == NULL ) {
         return -1;
     }
 
-    return exists ? 0 : -1;
+    free(fileEntry);
+
+    return 0;
 }
 
 /* checkIsFile()
@@ -882,46 +961,18 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
     char short_name[11];
     build_short_name(short_name, filename);
 
-    const Fat32BootSector *bpb = &fs->bpb;
-    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+    unsigned char* entry = getEntry( filename , fs );
 
-    unsigned char *buf = (unsigned char *) malloc(cluster_size);
-
-    if (!buf) 
-        return -1;
-
-    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
-    if (fseek(fs->image, dir_offset, SEEK_SET) != 0 ||
-        fread(buf, 1, cluster_size, fs->image) != cluster_size) {
-        free(buf);
+    if( entry == NULL ) {
         return -1;
     }
 
-    for (uint32_t off = 0; off < cluster_size; off += 32) {
-        unsigned char *entry = buf + off;
+    size_t res = ( ( entry[11] & 0x10 ) == 0) ? 0 : -1;
 
-        if (entry[0] == 0x00) 
-            break;          
-        if (entry[0] == 0xE5) 
-            continue;        
+    free(entry);
 
-        unsigned char attr = entry[11];
+    return res;
 
-        if ((attr & 0x0F) == 0x0F) 
-            continue;   
-
-        if ( memcmp( entry, short_name, 11 ) == 0) {
-
-            //directory attribute is 0x10; file is 0x20
-            size_t result = ((attr & 0x10) == 0) ? 0 : -1;
-
-            free(buf);
-            return result;
-        }
-    }
-
-    free(buf);
-    return -1;  /* Entry not found */
 }
 
 /* getStartCluster()
@@ -1322,7 +1373,7 @@ bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, 
         }
 
         if (exists) {
-            printf("Error: unexpected duplicate during free-scan\n");
+            printf("Error: unexpected duplicate during scan\n");
             return false;
         }
 

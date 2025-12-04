@@ -57,7 +57,7 @@ bool fs_creat(FileSystem *fs, const char *name);
 
 /* Part 2: Navigation commands */
 /* List directory contents of the current working directory */
-void fs_ls(const FileSystem *fs);
+void fs_ls( FileSystem *fs);
 
 /* Change current working directory to DIRNAME */
 bool fs_cd(FileSystem *fs, const char *dirname);
