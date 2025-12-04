@@ -410,7 +410,7 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
                           new_cluster,
                           0 /* size */);
 
-    printf("writing to offset %li" , free_offset);
+    //printf("writing to offset %li" , free_offset);
 
     return true;
 }
@@ -709,7 +709,7 @@ CurrentDirectory getcwd( FileSystem *fs ) {
             parent = root;
         }
 
-        
+
         cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
         buf = (unsigned char*)malloc(cluster_size);
         if (!buf) break;
