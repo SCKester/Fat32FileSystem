@@ -332,9 +332,9 @@ static int dir_scan_for_entry(FileSystem *fs,
 
 /* MULTICLUSTER SAFE
 * scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting byte
-* or NULL if not found returns cluster number of entry if found in cluster num , else NULL
+* or NULL if not found returns cluster number of entry if found in cluster num , else NULL , also returns offset inside cluster
 */
-unsigned char* getEntry(char* filename, FileSystem* fs , uint32_t* cluster_num ) {
+unsigned char* getEntry(char* filename, FileSystem* fs , uint32_t* cluster_num , uint32_t* cluster_offset ) {
     
     if (!filename || !fs || !fs->image) 
         return NULL;
@@ -383,7 +383,9 @@ unsigned char* getEntry(char* filename, FileSystem* fs , uint32_t* cluster_num )
                     memcpy(ret, entry, 32);
 
                 free(buf);
+
                 *cluster_num = cur;
+                *cluster_offset = off;
                 return ret;
             }
         }
@@ -956,7 +958,8 @@ size_t checkExists(char* filename, FileSystem* fs) {
         return -1;
 
     uint32_t cluster = 0;
-    unsigned char* fileEntry = getEntry( filename , fs , &cluster );
+    uint32_t clust_off = 0;
+    unsigned char* fileEntry = getEntry( filename , fs , &cluster, &clust_off );
 
     if ( fileEntry == NULL ) {
         return -1;
@@ -978,7 +981,8 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
         return -1;
 
     uint32_t cluster = 0;
-    unsigned char* entry = getEntry( filename , fs  , &cluster);
+    uint32_t clust_off = 0;
+    unsigned char* entry = getEntry( filename , fs  , &cluster , &clust_off);
 
     if( entry == NULL ) {
         return -1;
@@ -1005,7 +1009,8 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
     build_short_name(short_name, filename);
 
     uint32_t cluster = 0;
-    unsigned char* entry = getEntry( filename , fs , &cluster );
+    uint32_t clust_off = 0;
+    unsigned char* entry = getEntry( filename , fs , &cluster , &clust_off);
 
     if( entry == NULL ) {
         return 0;
@@ -1157,8 +1162,9 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
     }
 
     uint32_t entry_cluster_num = 0;
+    uint32_t cluster_offset = 0;
 
-    unsigned char* entry = getEntry( filename , fs , &entry_cluster_num  );
+    unsigned char* entry = getEntry( filename , fs , &entry_cluster_num , &cluster_offset );
 
     if( entry == NULL ) {
         printf("Error: file does not exist.\n");
@@ -1180,15 +1186,24 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
 
     //now we know its a file, delete
 
-    unsigned char delete_mark = 0xE5; 
+    unsigned char deleted_marker = 0xE5;
 
-    entry[0] = delete_mark;
+    if (fseek(fs->image, ( cluster_to_offset( fs , entry_cluster_num ) + cluster_offset ) , SEEK_SET) != 0) {
+        printf("Error: failed to seek to directory entry\n");
+        return false;
+    }
+    if (fwrite(&deleted_marker, 1, 1, fs->image) != 1) {
+        printf("Error: failed to mark entry as deleted\n");
+        return false;
+    }
 
 
     if (entry_cluster_num >= 2) {
         free_cluster_chain(fs, entry_cluster_num);
     }
 
+
+    fflush(fs->image);
 
     return true;
 }
@@ -1400,7 +1415,8 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
         return 0;
 
     uint32_t cluster = 0;
-    unsigned char* entry = getEntry( filename , fs  , &cluster );
+    uint32_t clust_off = 0;
+    unsigned char* entry = getEntry( filename , fs  , &cluster , &clust_off );
 
     if( entry == NULL ) {
         return 0;
