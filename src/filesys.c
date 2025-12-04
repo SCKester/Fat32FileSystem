@@ -325,8 +325,19 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-            }
-            else {
+            }else if (strcmp(cmd, "mv") == 0) {
+                if (tokens->size != 3) {
+                    printf("Usage: mv [SOURCE] [DEST]\n");
+                } else {
+                    if (!fs_mv(&fs,
+                            tokens->items[1],
+                            tokens->items[2],
+                            &openFiles,
+                            &cwd)) {
+                        // fs_mv already prints a detailed error
+                    }
+                }
+            }else {
                 printf("Error: unknown command '%s'\n", cmd);
             }
         }

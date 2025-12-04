@@ -1248,6 +1248,132 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     return true;
 }
 
+bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, CurrentDirectory *cwd_info)
+{
+    if (!fs || !src || !dest) {
+        printf("Error: invalid arguments to mv\n");
+        return false;
+    }
+
+    /* Build short names for FAT directory entries */
+    char src_short[11];
+    char dest_short[11];
+
+    build_short_name(src_short, src);
+    build_short_name(dest_short, dest);
+
+    /* Find source entry in current directory */
+    uint32_t src_cluster = 0;
+    uint8_t  src_attr    = 0;
+    long src_offset = find_directory_entry_offset(fs, src_short, &src_cluster, &src_attr);
+
+    if (src_offset < 0) {
+        printf("Error: source '%s' does not exist\n", src);
+        return false;
+    }
+
+    /* Enforce: file must be closed */
+    uint32_t start_cluster = getStartCluster(src_short, fs);
+    if (start_cluster != 0 &&
+        checkIsOpen(start_cluster, open_files, cwd_info->cwd, src) != 0) {
+        printf("Error: '%s' is currently open; close it before mv\n", src);
+        return false;
+    }
+
+    /* Check if dest is an existing entry in current directory */
+    uint32_t dest_cluster = 0;
+    uint8_t  dest_attr    = 0;
+    long dest_offset = find_directory_entry_offset(fs, dest_short, &dest_cluster, &dest_attr);
+
+    /* Reject moving directories*/
+    if (src_attr & 0x10) {   // 0x10 = directory attribute
+        printf("Error: cannot mv a directory\n");
+        return false;
+    }
+
+    /* Case 1: dest exists and is a directory -> move into that directory
+       (we keep the original name). */
+    if (dest_offset >= 0 && (dest_attr & 0x10)) {
+        uint32_t target_dir_cluster = getStartCluster(dest_short, fs);
+
+        if (target_dir_cluster == 0) {
+            printf("Error: failed to resolve destination directory '%s'\n", dest);
+            return false;
+        }
+
+        /* Read the source directory entry */
+        unsigned char entry[32];
+        if (fseek(fs->image, src_offset, SEEK_SET) != 0 ||
+            fread(entry, 1, 32, fs->image) != 32) {
+            printf("Error: failed to read source directory entry\n");
+            return false;
+        }
+
+        /* Find a free slot in the destination directory */
+        long free_offset;
+        int exists;
+
+        /* scan for free slot in destination directory */
+        if (dir_scan_for_entry(fs, target_dir_cluster, "           ", &free_offset, &exists) != 0) {
+            printf("Error: directory scan failed for destination\n");
+            return false;
+        }
+
+        if (exists) {
+            printf("Error: unexpected duplicate during free-scan\n");
+            return false;
+        }
+
+        if (free_offset < 0) {
+            printf("Error: destination directory full\n");
+            return false;
+        }
+
+        /* Write the copied entry into the destination directory */
+        if (fseek(fs->image, free_offset, SEEK_SET) != 0 ||
+            fwrite(entry, 1, 32, fs->image) != 32) {
+            printf("Error: failed to write directory entry in destination\n");
+            return false;
+        }
+
+        /* Mark old entry as free (0xE5 in first byte) */
+        if (fseek(fs->image, src_offset, SEEK_SET) == 0) {
+            unsigned char del = 0xE5;
+            fwrite(&del, 1, 1, fs->image);
+        }
+
+        fflush(fs->image);
+        return true;
+    }
+
+    /* Case 2: dest does NOT exist -> simple rename in current directory. */
+    if (dest_offset < 0) {
+        unsigned char entry[32];
+
+        if (fseek(fs->image, src_offset, SEEK_SET) != 0 ||
+            fread(entry, 1, 32, fs->image) != 32) {
+            printf("Error: failed to read source directory entry\n");
+            return false;
+        }
+
+        /* Overwrite the name field with new short name */
+        memcpy(entry, dest_short, 11);
+
+        if (fseek(fs->image, src_offset, SEEK_SET) != 0 ||
+            fwrite(entry, 1, 32, fs->image) != 32) {
+            printf("Error: failed to write renamed directory entry\n");
+            return false;
+        }
+
+        fflush(fs->image);
+        return true;
+    }
+
+    /* Case 3: dest exists but is NOT a directory -> error. */
+    printf("Error: destination '%s' is a file, not a directory\n", dest);
+    return false;
+}
+
 /* getFileSize()
  * Returns the size (in bytes) of the file with name "filename" in the current
  * working directory of 'fs'. Assumes the file exists. Returns 0 if not found
