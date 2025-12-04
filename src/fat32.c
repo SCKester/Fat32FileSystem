@@ -708,8 +708,8 @@ CurrentDirectory getcwd( FileSystem *fs ) {
         if (parent == 0) {  
             parent = root;
         }
-        /* Now scan parent directory to find the entry whose cluster == cur
-         * That entry's name is the segment we need to prepend. */
+
+        
         cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
         buf = (unsigned char*)malloc(cluster_size);
         if (!buf) break;
