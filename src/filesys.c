@@ -127,8 +127,8 @@ int main(int argc, char *argv[]) {
 
                         if( openFile( &openFiles , tokens->items[1] , getReadWrite( tokens ) , getStartCluster( tokens->items[1] , &fs ) , direc ) == -1 ) {
                             printf("Error: cannot open file, likely already open.\n");
-                            free( direc.cwd );
                         }
+                        free( direc.cwd );
                     }
 
                 }
