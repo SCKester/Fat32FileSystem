@@ -268,7 +268,8 @@ static void init_directory_cluster(FileSystem *fs,
     free(buf);
 }
 
-//checks free allocation in cluster NOT MULTICLUSTER SAFE
+//checks free allocation in cluster 
+//NOT MULTICLUSTER SAFE
 static int dir_scan_for_entry(FileSystem *fs,
                               uint32_t dir_cluster,
                               const char short_name[11],
@@ -979,48 +980,18 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
 static long find_directory_entry_offset(FileSystem *fs, const char short_name[11],
                                          uint32_t *out_cluster, uint8_t *out_attr) {
 
-    const Fat32BootSector *bpb = &fs->bpb;
-    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
+    uint32_t entry_cluster_num = 0; //this holds the starting cluster number of filename on success
+    uint32_t cluster_offset = 0; //this holds the offset of the start of the entry in the cluster on success
 
-    unsigned char *buf = (unsigned char *) malloc(cluster_size);
-    if (!buf) return -1;
+    unsigned char* entry = getEntry( (char*)short_name , fs , &entry_cluster_num , &cluster_offset );
 
-    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
+    *out_attr = entry[11];
+    *out_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
-    if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
-        free(buf);
-        return -1;
-    }
+    return (long) cluster_offset;
 
-    if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
-        free(buf);
-        return -1;
-    }
-
-    long entry_offset = -1;
-
-    for (uint32_t off = 0; off < cluster_size; off += 32) {
-        unsigned char *entry = buf + off;
-
-        if (entry[0] == 0x00) break;
-        if (entry[0] == 0xE5) continue;
-
-        unsigned char attr = entry[11];
-
-        if ((attr & 0x0F) == 0x0F) continue;
-
-        if (memcmp(entry, short_name, 11) == 0) {
-            *out_attr = attr;
-            *out_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
-                          ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-            entry_offset = dir_offset + (long)off;
-            break;
-        }
-    }
-
-    free(buf);
-    return entry_offset;
 }
 
 /* MULTICLUSTER SAFE
@@ -1474,14 +1445,11 @@ uint32_t readFile(uint32_t start_offset, uint32_t size_to_read, char* filename, 
 }
 
 
-/* writeToFile()  NOT MULTICLUSTER SAFE
+/* writeToFile() MULTICLUSTER SAFE
  * writes the bytes to filename
  * returns the number of bytes written or 0 on error or none.
  */
 uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t start_offset, FileSystem* fs , OpenFile* file ) {
-
-    if (!filename || !bytes_to_write || !fs || !fs->image)
-        return 0;
 
     size_t write_len = strlen(bytes_to_write);
 
@@ -1494,17 +1462,30 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
     uint32_t start_cluster = 0;
     uint8_t attr = 0;
 
-    long entry_offset = find_directory_entry_offset(fs, short_name, &start_cluster, &attr);
 
-    if (entry_offset == -1) //silly kid
+    uint32_t entry_cluster = 0;
+    uint32_t cluster_off = 0;
+
+    unsigned char* entry_copy = getEntry( short_name, fs, &entry_cluster, &cluster_off);
+
+    if (!entry_copy) {
+        return 0;
+    }
+
+    attr = entry_copy[11];
+    start_cluster = ((uint32_t)entry_copy[21] << 24) | ((uint32_t)entry_copy[20] << 16) |
+                    ((uint32_t)entry_copy[27] << 8) | (uint32_t)entry_copy[26]; //start cluster
+
+    long entry_offset = cluster_to_offset(fs, entry_cluster) + (long)cluster_off;
+
+    free(entry_copy);
+
+    if (entry_offset < 0) return 0;
+
+    if (attr & 0x10) //id directory
         return 0;
 
-    if (attr & 0x10) //dir check
-        return 0; 
-
     uint32_t old_size = getFileSize((char*)filename, fs);
-
-    //printf("file size: %u\n" , old_size);
 
     //bound to EOF
     uint32_t write_offset = (start_offset > old_size) ? old_size : start_offset;
@@ -1518,6 +1499,7 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
     if (cur_cluster == 0) {
 
         uint32_t new_cluster = allocate_cluster(fs);
+
 
         if (new_cluster == 0) 
             return 0;
@@ -1545,6 +1527,7 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
         if (cluster_count > fs->total_clusters + 7) 
             break;
     }
+
 
     //calc cluster size increaase needed?
     uint32_t final_needed_size = write_offset + (uint32_t)write_len;
@@ -1632,6 +1615,7 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
     // update directory entry, first cluster (if changed) and file size 
     unsigned char entry[32];
+    
     if (fseek(fs->image, entry_offset, SEEK_SET) != 0) 
         return written;
     if (fread(entry, 1, 32, fs->image) != 32) 

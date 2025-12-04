@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
                                 }
                                 else {
                                     //we can now write offset to oopen file
-                                    if( writeFileOffset( &openFiles , getStartCluster( tokens->items[1] , &fs ) , newOffset ) == -1 ) {
+                                    if( writeFileOffset( &openFiles , getStartCluster( tokens->items[1] , &fs ) , tokens->items[1] , cwd.cwd , newOffset ) == -1 ) {
                                         printf("Error: unable to write offset to file.\n");
                                     }
                                 }

@@ -86,7 +86,6 @@ int closeFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirector
         OpenFile* file = &(files->files[i]);
 
         if( file->open == 1 && 
-            file->startCluster == startCluster && 
             strcmp( file->fileName , filename) == 0 && 
             strcmp( file->filePath , direc->cwd ) == 0)  {
 
@@ -187,13 +186,15 @@ void printOpenFiles( struct OpenFiles* files ) {
 }
 
 //writes file offset and returns 0 on success writing , -1 otherwise if fail
-int writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset ) {
+int writeFileOffset( struct OpenFiles* files , uint32_t startCluster, char* filename, char* cwd , uint32_t newOffset ) {
 
     size_t success = -1;
 
     for ( size_t i = 0 ; i < 10 ; i++ ) {
 
-        if( startCluster == files->files[i].startCluster ) {
+        OpenFile* file = &(files->files[i]);
+
+        if( file->open == 1 && strcmp( file->fileName , filename) == 0 && strcmp( file->filePath , cwd ) == 0 ) {
             files->files[i].offset = newOffset;
             success = 0;
             break;
@@ -213,7 +214,6 @@ OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster , Current
         OpenFile* curFile = &(files->files[i]);
 
         if( curFile->open == 1 && 
-            curFile->startCluster == startCluster && 
             strcmp( curFile->fileName , filename) == 0 && 
             strcmp( curFile->filePath , direc->cwd ) == 0)  {
 

@@ -41,6 +41,6 @@ int checkIsOpen( struct OpenFiles* files , char* cwd , char* filename );
 
 void printOpenFiles( struct OpenFiles* files );
 
-int writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset );
+int writeFileOffset( struct OpenFiles* files , uint32_t startCluster, char* filename, char* cwd , uint32_t newOffset );
 
 OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirectory* direc , char* filename  );
