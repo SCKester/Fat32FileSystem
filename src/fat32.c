@@ -7,11 +7,14 @@
 
 //HUGH: TODO: we really should jujst make a uint32_t getentry( char* filename) function instaed of just copying same logic for half of our helpers, or not...
 
-/* Little-endian readers */
+/* MULTICLUSTER SAFE
+Little-endian readers 
+*/
 static uint16_t read_le16(const unsigned char *p) {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
 
+//MULTICLUSTER SAFE
 static uint32_t read_le32(const unsigned char *p) {
     return (uint32_t)p[0]
          | ((uint32_t)p[1] << 8)
@@ -19,7 +22,9 @@ static uint32_t read_le32(const unsigned char *p) {
          | ((uint32_t)p[3] << 24);
 }
 
-/* Mount FAT32 filesystem */
+/* MULTICLUSTER SAFE
+Mount FAT32 filesystem 
+*/
 bool fs_mount(FileSystem *fs, const char *image_path) {
     memset(fs, 0, sizeof(*fs));
 
@@ -75,7 +80,9 @@ bool fs_mount(FileSystem *fs, const char *image_path) {
     return true;
 }
 
-/* Unmount filesystem */
+/* MULTICLUSTER SAFE
+Unmount filesystem 
+*/
 void fs_unmount(FileSystem *fs) {
     if (fs->image) {
         fclose(fs->image);
@@ -83,7 +90,9 @@ void fs_unmount(FileSystem *fs) {
     }
 }
 
-/* info command */
+/* MULTICLUSTER SAFE
+info command 
+*/
 void cmd_info(const FileSystem *fs) {
 
     const Fat32BootSector *bpb = &fs->bpb;
@@ -115,7 +124,9 @@ void cmd_info(const FileSystem *fs) {
 
 #define FAT32_EOC 0x0FFFFFFF
 
-/* Convert a cluster number to a byte offset in the image file */
+/* MULTICLUSTER SAFE
+Convert a cluster number to a byte offset in the image file 
+*/
 static long cluster_to_offset(const FileSystem *fs, uint32_t cluster) {
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t bytes_per_sector    = bpb->bytes_per_sector;
@@ -128,6 +139,8 @@ static long cluster_to_offset(const FileSystem *fs, uint32_t cluster) {
     return (long)sector * bytes_per_sector;
 }
 
+
+//MULTICLUSTER SAFE
 static void build_short_name(char dest[11], const char *name) {
     memset(dest, ' ', 11);
 
@@ -144,7 +157,8 @@ static void build_short_name(char dest[11], const char *name) {
     }
 }
 
-/* Read a FAT32 entry for a given cluster.
+/* MULTICLUSTER SAFE
+Read a FAT32 entry for a given cluster.
  */
 static uint32_t read_fat_entry(FileSystem *fs, uint32_t cluster) {
 
@@ -169,7 +183,9 @@ static uint32_t read_fat_entry(FileSystem *fs, uint32_t cluster) {
          | ((uint32_t)buf[3] << 24);
 }
 
-/* Write FAT32 entry for a given cluster */
+/* MULTICLUSTER SAFE
+Write FAT32 entry for a given cluster 
+*/
 static void write_fat_entry(FileSystem *fs, uint32_t cluster, uint32_t value) {
 
     const Fat32BootSector *bpb = &fs->bpb;
@@ -191,7 +207,9 @@ static void write_fat_entry(FileSystem *fs, uint32_t cluster, uint32_t value) {
     fwrite(buf, 1, 4, fs->image);
 }
 
-/* Find a free cluster by scanning the FAT */
+/* MULTICLUSTER SAFE
+Find a free cluster by scanning the FAT 
+*/
 static uint32_t allocate_cluster(FileSystem *fs) {
     for (uint32_t c = 2; c < fs->total_clusters + 2; c++) {
         uint32_t val = read_fat_entry(fs, c);
@@ -203,7 +221,9 @@ static uint32_t allocate_cluster(FileSystem *fs) {
     return 0; /* No free cluster */
 }
 
-/* Initialize a newly allocated directory cluster with "." and ".." entries */
+/* MULTICLUSTER SAFE
+Initialize a newly allocated directory cluster with "." and ".." entries 
+*/
 static void init_directory_cluster(FileSystem *fs,
                                    uint32_t new_cluster,
                                    uint32_t parent_cluster) {
@@ -248,7 +268,7 @@ static void init_directory_cluster(FileSystem *fs,
     free(buf);
 }
 
-//checks free allocation in cluster
+//checks free allocation in cluster NOT MULTICLUSTER
 static int dir_scan_for_entry(FileSystem *fs,
                               uint32_t dir_cluster,
                               const char short_name[11],
@@ -310,8 +330,8 @@ static int dir_scan_for_entry(FileSystem *fs,
     return 0;
 }
 
-/*
-* scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting bytes
+/* MULTICLUSTER SAFE
+* scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting byte
 * or NULL if not found
 */
 unsigned char* getEntry(char* filename, FileSystem* fs) {
@@ -381,7 +401,7 @@ not_found:
     return NULL;
 }
 
-/* write_directory_entry()
+/* write_directory_entry() UNSURE MULTICLUSTER
  * Writes a single 32-byte FAT directory entry.
  * Used by both fs_mkdir() and fs_creat().
  */
@@ -419,7 +439,7 @@ static void write_directory_entry(FileSystem *fs,
 
 }
 
-/* fs_mkdir()
+/* fs_mkdir() NOT MULTICLUSTER SAFE
  *
  * Returns true on success, false on failure.
  */
@@ -481,7 +501,7 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
     return true;
 }
 
-/*
+/* NOT MULTICLUSTER SAFE
  * Creates an empty file with size = 0 and allocates a starting cluster.
  *  attribute = 0x20
  *  ALLOCATES a starting cluster for the file
@@ -538,7 +558,7 @@ bool fs_creat(FileSystem *fs, const char *name) {
     return true;
 }
 
-/* 
+/* MULTICLUSTER SAFE
  * Lists all directory entries in the current working directory.
  */
 void fs_ls( FileSystem *fs ) {
@@ -607,7 +627,7 @@ done:
 }
 
 
-/* 
+/* MULTICLUSTER SAFE
  * Changes the current working directory to DIRNAME.
  * Returns true on success, false on failure.
  * Prints an error message if DIRNAME does not exist or is not a directory.
@@ -704,7 +724,7 @@ bool fs_cd(FileSystem *fs, const char *dirname) {
     return true;
 }
 
-/* getcwd()
+/* getcwd() MULTILUSTER SAFE
  * Builds a full path from the current working directory by walking up
  * the directory tree following the ".." entries until the root cluster.
  * Returns a dynamically allocatew c string and its size ( caller must free ) containing the
@@ -924,7 +944,7 @@ CurrentDirectory getcwd( FileSystem *fs ) {
     return directory;
 }
 
-/* checkExists()
+/* checkExists() MULTICLUSTER SAFE
  * Returns 0 if a file/directory with filename exists in the current
  * working directory (fs->cwd_cluster). Returns -1 on error or
  * if it does not exist.
@@ -933,9 +953,6 @@ size_t checkExists(char* filename, FileSystem* fs) {
 
     if (!filename || !fs) 
         return -1;
-
-    char short_name[11];
-    build_short_name(short_name, filename);
 
     unsigned char* fileEntry = getEntry( filename , fs );
 
@@ -948,7 +965,7 @@ size_t checkExists(char* filename, FileSystem* fs) {
     return 0;
 }
 
-/* checkIsFile()
+/* checkIsFile() MULTICLUSTER SAFE
  * Returns 0 if the entry with name 'filename' exists in the current working
  * directory and is a regular file (not a directory). returns -1 if
  * it does not exist, is a directory, or on error.
@@ -957,9 +974,6 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
 
     if (!filename || !fs || !fs->image) 
         return -1;
-
-    char short_name[11];
-    build_short_name(short_name, filename);
 
     unsigned char* entry = getEntry( filename , fs );
 
@@ -975,7 +989,7 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
 
 }
 
-/* getStartCluster()
+/* getStartCluster() MULTICLUSTER SAFE
  * returns the starting cluster number of the file/directory entry with name
  *'filename' in the current working directory. Returns 0 if not found or on error.
  */
@@ -987,48 +1001,21 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
     char short_name[11];
     build_short_name(short_name, filename);
 
-    const Fat32BootSector *bpb = &fs->bpb;
-    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+    unsigned char* entry = getEntry( filename , fs );
 
-    unsigned char *buf = (unsigned char *)malloc(cluster_size);
-    if (!buf) return 0;
-
-    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
-    if (fseek(fs->image, dir_offset, SEEK_SET) != 0 ||
-        fread(buf, 1, cluster_size, fs->image) != cluster_size) {
-        free(buf);
+    if( entry == NULL ) {
         return 0;
     }
 
-    //Scan for the entry 
-    for (uint32_t off = 0; off < cluster_size; off += 32) {
-        unsigned char *entry = buf + off;
+    uint32_t start_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                                ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
-        if (entry[0] == 0x00) 
-            break;           
-        if (entry[0] == 0xE5) 
-            continue;        
 
-        unsigned char attr = entry[11];
-        if ((attr & 0x0F) == 0x0F) 
-            continue;  
-
-        //Check if name matches
-        if (memcmp(entry, short_name, 11) == 0) {
-            uint32_t start_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
-                                     ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-
-            free(buf);
-            return start_cluster;
-        }
-    }
-
-    free(buf);
-
-    return 0;
+    free(entry);
+    return start_cluster;
 }
 
-/*
+/* NOT MULTICLUSTER SAFE
  * find_directory_entry_offset()
  * Searches for a file/directory entry in the current working directory.
  * Returns the byte offset of the entry in the image file, or -1 if not found.
@@ -1036,10 +1023,12 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
  */
 static long find_directory_entry_offset(FileSystem *fs, const char short_name[11],
                                          uint32_t *out_cluster, uint8_t *out_attr) {
+
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
-    unsigned char *buf = (unsigned char *)malloc(cluster_size);
+
+    unsigned char *buf = (unsigned char *) malloc(cluster_size);
     if (!buf) return -1;
 
     long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
@@ -1078,7 +1067,7 @@ static long find_directory_entry_offset(FileSystem *fs, const char short_name[11
     return entry_offset;
 }
 
-/*
+/* MULTICLUSTER SAFE
  * free_cluster_chain()
  * Frees all clusters in a cluster chain by marking them as free (0x00000000) in the FAT.
  */
@@ -1095,7 +1084,7 @@ static void free_cluster_chain(FileSystem *fs, uint32_t start_cluster) {
     }
 }
 
-/*
+/* NOT MULTICLUSTER SAFE
  * is_directory_empty()
  * Checks if a directory contains only "." and ".." entries.
  * Returns true if empty, false otherwise.
@@ -1110,6 +1099,7 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
     if (!buf) return false;
 
     long dir_offset = cluster_to_offset(fs, dir_cluster);
+
     if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
         free(buf);
         return false;
@@ -1144,7 +1134,7 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
     return true;
 }
 
-/*
+/* NOT MULTICLUSTER SAFE
  * fs_rm()
  * Deletes a file from the current working directory.
  */
@@ -1209,7 +1199,7 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
     return true;
 }
 
-/*
+/* NOT MULTICLUSTER SAFE
  * fs_rmdir()
  * Removes a directory from the current working directory.
  * 
@@ -1252,29 +1242,6 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
         return false;
     }
 
-    /* Check if any files in the directory are open
-     * We need to check all open files to see if their path starts with this directory */
-    for (int i = 0; i < 10; i++) {
-        if (open_files->files[i].open == 1) {
-            /* Get current directory path */
-            CurrentDirectory cwd = getcwd(fs);
-
-            /* Build the path to this directory */
-            char dir_path[512];
-            snprintf(dir_path, sizeof(dir_path), "%s/%s", cwd.cwd, dirname);
-
-            /* Check if any open file's path starts with this directory path */
-            if (strncmp(open_files->files[i].filePath, dir_path, strlen(dir_path)) == 0) {
-                printf("Error: directory '%s' contains an open file\n", dirname);
-                free(cwd.cwd);
-
-                return false;
-            }
-
-            free(cwd.cwd);
-        }
-    }
-
     /* Mark directory entry as deleted (0xE5) */
     unsigned char deleted_marker = 0xE5;
 
@@ -1297,7 +1264,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     return true;
 }
 
-/*
+/* NOT MULTICLUSTER SAFE
 * fs_mv()
 * moves a file, returns false on failure and may print an error message
 */
@@ -1427,7 +1394,8 @@ bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, 
     return false;
 }
 
-/* getFileSize()
+/* MULTICLUSTER SAFE
+    getFileSize()
  * Returns the size (in bytes) of the file with name "filename" in the current
  * working directory of 'fs'. Assumes the file exists. Returns 0 if not found
  * or on error.
@@ -1437,56 +1405,18 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
     if (!filename || !fs || !fs->image) 
         return 0;
 
-    char short_name[11];
 
-    build_short_name(short_name, filename);
+    unsigned char* entry = getEntry( filename , fs );
 
-    const Fat32BootSector *bpb = &fs->bpb;
-    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
-
-    unsigned char *buf = (unsigned char *) malloc(cluster_size);
-
-    if (!buf) 
-        return 0;
-
-    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
-
-    if (fseek(fs->image, dir_offset, SEEK_SET) != 0 ||
-        fread(buf, 1, cluster_size, fs->image) != cluster_size) {
-
-        free(buf);
+    if( entry == NULL ) {
         return 0;
     }
 
-    //Scan for the entry 
-    for (uint32_t off = 0; off < cluster_size; off += 32) {
+    uint32_t file_size = read_le32( entry + 28 );
 
-        unsigned char* entry = buf + off;
+    free( entry );
 
-        if (entry[0] == 0x00) 
-            break;           
-        if (entry[0] == 0xE5) 
-            continue;        
-
-        unsigned char attr = entry[11];
-
-        if ((attr & 0x0F) == 0x0F) 
-            continue;  
-
-        //check if name matches
-        if (memcmp(entry, short_name, 11) == 0) {
-            //file size is stored at bytes 28-31
-
-            uint32_t file_size = read_le32( entry + 28 );
-
-            free(buf);
-            return file_size;
-        }
-    }
-
-    free(buf);
-
-    return 0; 
+    return file_size;
 }
 
 /* readFile()
@@ -1671,7 +1601,7 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
             write_fat_entry(fs, new_cluster, FAT32_EOC);
 
             last_cluster = new_cluster;
-            ++cluster_count;
+            cluster_count++;
         }
     }
 
