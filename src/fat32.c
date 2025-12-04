@@ -1144,7 +1144,7 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
     return true;
 }
 
-/* NOT MULTICLUSTER SAFE
+/* MULTICLUSTER SAFE
  * fs_rm()
  * Deletes a file from the current working directory.
  */
