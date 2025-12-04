@@ -332,9 +332,9 @@ static int dir_scan_for_entry(FileSystem *fs,
 
 /* MULTICLUSTER SAFE
 * scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting byte
-* or NULL if not found
+* or NULL if not found returns cluster number of entry if found in cluster num , else NULL
 */
-unsigned char* getEntry(char* filename, FileSystem* fs) {
+unsigned char* getEntry(char* filename, FileSystem* fs , uint32_t* cluster_num ) {
     
     if (!filename || !fs || !fs->image) 
         return NULL;
@@ -383,6 +383,7 @@ unsigned char* getEntry(char* filename, FileSystem* fs) {
                     memcpy(ret, entry, 32);
 
                 free(buf);
+                *cluster_num = cur;
                 return ret;
             }
         }
@@ -954,7 +955,8 @@ size_t checkExists(char* filename, FileSystem* fs) {
     if (!filename || !fs) 
         return -1;
 
-    unsigned char* fileEntry = getEntry( filename , fs );
+    uint32_t cluster = 0;
+    unsigned char* fileEntry = getEntry( filename , fs , &cluster );
 
     if ( fileEntry == NULL ) {
         return -1;
@@ -975,7 +977,8 @@ size_t checkIsFile(char* filename, FileSystem* fs) {
     if (!filename || !fs || !fs->image) 
         return -1;
 
-    unsigned char* entry = getEntry( filename , fs );
+    uint32_t cluster = 0;
+    unsigned char* entry = getEntry( filename , fs  , &cluster);
 
     if( entry == NULL ) {
         return -1;
@@ -1001,7 +1004,8 @@ uint32_t getStartCluster(char* filename, FileSystem* fs) {
     char short_name[11];
     build_short_name(short_name, filename);
 
-    unsigned char* entry = getEntry( filename , fs );
+    uint32_t cluster = 0;
+    unsigned char* entry = getEntry( filename , fs , &cluster );
 
     if( entry == NULL ) {
         return 0;
@@ -1032,6 +1036,7 @@ static long find_directory_entry_offset(FileSystem *fs, const char short_name[11
     if (!buf) return -1;
 
     long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
+
     if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
         free(buf);
         return -1;
@@ -1151,50 +1156,39 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
         return false;
     }
 
-    /* Convert to FAT short name */
-    char short_name[11];
-    build_short_name(short_name, filename);
+    uint32_t entry_cluster_num = 0;
 
-    /* Find the directory entry */
-    uint32_t start_cluster;
-    uint8_t attr;
-    long entry_offset = find_directory_entry_offset(fs, short_name, &start_cluster, &attr);
+    unsigned char* entry = getEntry( filename , fs , &entry_cluster_num  );
 
-    if (entry_offset == -1) {
-        printf("Error: file '%s' does not exist\n", filename);
+    if( entry == NULL ) {
+        printf("Error: file does not exist.\n");
         return false;
     }
 
-    /* Check if it's a directory */
-    if (attr & 0x10) {
-        printf("Error: '%s' is a directory\n", filename);
-        return false;
-    }
-
-    /* Check if file is open */
-    if (checkIsOpen(start_cluster, open_files , cwd , filename ) == -1) {
+    if (checkIsOpen( open_files , cwd , filename ) == -1) {
         printf("Error: file '%s' is currently open\n", filename);
         return false;
     }
 
-    /* Mark directory entry as deleted (0xE5) */
-    unsigned char deleted_marker = 0xE5;
-    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
-        printf("Error: failed to seek to directory entry\n");
-        return false;
-    }
-    if (fwrite(&deleted_marker, 1, 1, fs->image) != 1) {
-        printf("Error: failed to mark entry as deleted\n");
+    //file/dir is not open and exusts
+    //check if directory
+
+    if ( entry[11] == 0x10 ) {
+        printf("Error: rm doesnt work on directories.\n");
         return false;
     }
 
-    /* Free all clusters in the cluster chain */
-    if (start_cluster >= 2) {
-        free_cluster_chain(fs, start_cluster);
+    //now we know its a file, delete
+
+    unsigned char delete_mark = 0xE5; 
+
+    entry[0] = delete_mark;
+
+
+    if (entry_cluster_num >= 2) {
+        free_cluster_chain(fs, entry_cluster_num);
     }
 
-    /* Flush changes to disk */
-    fflush(fs->image);
 
     return true;
 }
@@ -1295,7 +1289,7 @@ bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, 
     /* file must be closed */
     uint32_t start_cluster = getStartCluster(src_short, fs);
     if (start_cluster != 0 &&
-        checkIsOpen(start_cluster, open_files, cwd_info->cwd, src) != 0) {
+        checkIsOpen( open_files, cwd_info->cwd, src) != 0) {
         printf("Error: '%s' is currently open; close it before mv\n", src);
         return false;
     }
@@ -1405,8 +1399,8 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
     if (!filename || !fs || !fs->image) 
         return 0;
 
-
-    unsigned char* entry = getEntry( filename , fs );
+    uint32_t cluster = 0;
+    unsigned char* entry = getEntry( filename , fs  , &cluster );
 
     if( entry == NULL ) {
         return 0;

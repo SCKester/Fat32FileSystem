@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
                         uint32_t startCluster = getStartCluster( tokens->items[1] , &fs );
 
-                        if( checkIsOpen( startCluster , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) { //file not open , error
+                        if( checkIsOpen(  &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) { //file not open , error
                             printf("Error: file is not open.\n");
                         }
                         else {
@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
                         }
                         else {
 
-                            if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) { //file not open, error
+                            if( checkIsOpen( &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) { //file not open, error
                                 printf("Error: file, %s is not open in cwd\n" , tokens->items[2] );
                             }
                             else {
@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
                     }
                     else {
 
-                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) {
+                        if( checkIsOpen( &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) {
                             printf("Error: file is not open...\n");
                         }
                         else {
@@ -295,7 +295,7 @@ int main(int argc, char *argv[]) {
                     }
                     else {
 
-                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) {
+                        if( checkIsOpen( &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) {
                             printf("Error: file is not open..");
                         }
                         else {

@@ -37,7 +37,7 @@ void closeAllFiles( struct OpenFiles* files );
 //1 is read , 2 is write ,  3 is read/write - 0 is none or not valid
 size_t getReadWrite( tokenlist* tokens  );
 
-int checkIsOpen( uint32_t startCluster , struct OpenFiles* files , char* cwd , char* filename );
+int checkIsOpen( struct OpenFiles* files , char* cwd , char* filename );
 
 void printOpenFiles( struct OpenFiles* files );
 

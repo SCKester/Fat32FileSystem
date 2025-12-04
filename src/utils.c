@@ -2,20 +2,20 @@
 #include <stdio.h>
 
 //-1 if open , 0 if not open
-int checkIsOpen( uint32_t startCluster , struct OpenFiles* files , char* cwd , char* filename ) {
+// i dont feel like refactoring so an overload, whatever
+int checkIsOpen( struct OpenFiles* files , char* cwd , char* filename ) {
 
     for ( size_t i = 0 ; i < 10 ; i++ ) {
 
         OpenFile* file = &(files->files[i]);
 
-        if( file->open == 1 && file->startCluster == startCluster && strcmp( file->fileName , filename) == 0 && strcmp( file->filePath , cwd ) == 0 ) {
+        if( file->open == 1 && strcmp( file->fileName , filename) == 0 && strcmp( file->filePath , cwd ) == 0 ) {
             return -1;
         }
     }
 
     return 0;
 }
-
 
 struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 
@@ -40,7 +40,7 @@ int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t st
     
     size_t index = -1;
 
-    if( checkIsOpen( startCluster , files , direc->cwd , fileName ) == -1 ) {
+    if( checkIsOpen( files , direc->cwd , fileName ) == -1 ) {
         return -1;
     }
 
@@ -75,7 +75,7 @@ int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t st
 //returns -1 on error, otherwise index of closed file
 int closeFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirectory* direc , char* filename ) {
 
-    if( checkIsOpen( startCluster , files , direc->cwd , filename ) == 0 ) {
+    if( checkIsOpen( files , direc->cwd , filename ) == 0 ) {
         return -1;
     }
 
