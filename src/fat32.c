@@ -1161,8 +1161,8 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
         return false;
     }
 
-    uint32_t entry_cluster_num = 0;
-    uint32_t cluster_offset = 0;
+    uint32_t entry_cluster_num = 0; //this holds the starting cluster number of filename on success
+    uint32_t cluster_offset = 0; //this holds the offset of the start of the entry in the cluster on success
 
     unsigned char* entry = getEntry( filename , fs , &entry_cluster_num , &cluster_offset );
 
