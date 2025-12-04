@@ -268,7 +268,7 @@ static void init_directory_cluster(FileSystem *fs,
     free(buf);
 }
 
-//checks free allocation in cluster NOT MULTICLUSTER
+//checks free allocation in cluster NOT MULTICLUSTER SAFE
 static int dir_scan_for_entry(FileSystem *fs,
                               uint32_t dir_cluster,
                               const char short_name[11],
