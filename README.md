@@ -4,7 +4,7 @@ A small psuedo filesystem driver implementing FAT32 standard and showcasing abil
 can read and werite and navigate directories on a psuedo disk image with opened and closed files.
 
 ## Group Members
-- **John Doe**: jd19@fsu.edu
+- **James Fontaine**: jwf22c@fsu.edu
 - **Jane Smith**: js19@fsu.edu
 - **HUGH LONG**: hal20a@fsu.edu
 ## Division of Labor
@@ -14,8 +14,8 @@ can read and werite and navigate directories on a psuedo disk image with opened 
 - **Assigned to**: John Doe
 
 ### Part 2: Navigation
-- **Responsibilities**: [Description]
-- **Assigned to**: Jane Smith
+- **Responsibilities**: Implementing cd and ls 
+- **Assigned to**: James Fontaine
 
 ### Part 3: Create
 - **Responsibilities**: [Description]
@@ -30,8 +30,8 @@ can read and werite and navigate directories on a psuedo disk image with opened 
 - **Assigned to**: HUGH LONG
 
 ### Part 6: Delete
-- **Responsibilities**: [Description]
-- **Assigned to**: Jane Smith
+- **Responsibilities**: Implementing rm and rmdir
+- **Assigned to**: James Fontaine
 
 ## File Listing
 ```
