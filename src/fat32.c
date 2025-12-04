@@ -1,6 +1,5 @@
 #define _POSIX_C_SOURCE 200809L //HUGH: strdup support cross-compiler because why????
 #include "fat32.h"
-#include "utils.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -149,12 +148,12 @@ static void build_short_name(char dest[11], const char *name) {
 
 /* Read a FAT32 entry for a given cluster.
  *
- * Each FAT32 entry is 32 bits (4 bytes).
+ * Each FAT32 entry is 32 bits.
  * FAT offset = cluster * 4
  * FAT sector = fat_start_sector + (fat_offset / bytes_per_sector)
  * entry offset = fat_offset % bytes_per_sector
  *
- * This function returns:
+ * fumction returns:
  *   - next cluster in chain
  *   - FAT32_EOC when at end of cluster chain
  */
@@ -358,15 +357,6 @@ static void write_directory_entry(FileSystem *fs,
 }
 
 /* fs_mkdir()
- * Implements FAT32 directory creation:
- *   1. Validate input (1–11 char FAT short names only)
- *   2. Convert to 11-byte short name
- *   3. Scan the current directory cluster for:
- *         - duplicate name
- *         - free entry slot
- *   4. Allocate a free cluster for new directory
- *   5. Initialize '.' and '..' entries in the new cluster
- *   6. Write a directory entry in the parent directory
  *
  * Returns true on success, false on failure.
  */
@@ -1020,6 +1010,7 @@ static long find_directory_entry_offset(FileSystem *fs, const char short_name[11
         if (entry[0] == 0xE5) continue;
 
         unsigned char attr = entry[11];
+
         if ((attr & 0x0F) == 0x0F) continue;
 
         if (memcmp(entry, short_name, 11) == 0) {
@@ -1040,10 +1031,13 @@ static long find_directory_entry_offset(FileSystem *fs, const char short_name[11
  * Frees all clusters in a cluster chain by marking them as free (0x00000000) in the FAT.
  */
 static void free_cluster_chain(FileSystem *fs, uint32_t start_cluster) {
+
     uint32_t cluster = start_cluster;
 
     while (cluster >= 2 && cluster < 0x0FFFFFF8) {
+
         uint32_t next_cluster = read_fat_entry(fs, cluster);
+        
         write_fat_entry(fs, cluster, 0x00000000);
         cluster = next_cluster;
     }
@@ -1055,10 +1049,12 @@ static void free_cluster_chain(FileSystem *fs, uint32_t start_cluster) {
  * Returns true if empty, false otherwise.
  */
 static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
+
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
-    unsigned char *buf = (unsigned char *)malloc(cluster_size);
+    unsigned char *buf = (unsigned char *) malloc(cluster_size);
+
     if (!buf) return false;
 
     long dir_offset = cluster_to_offset(fs, dir_cluster);
@@ -1073,6 +1069,7 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
     }
 
     for (uint32_t off = 0; off < cluster_size; off += 32) {
+
         unsigned char *entry = buf + off;
 
         if (entry[0] == 0x00) break;
@@ -1086,7 +1083,7 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
             continue;
         }
 
-        /* Found a real entry - directory is not empty */
+
         free(buf);
         return false;
     }
@@ -1098,19 +1095,9 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
 /*
  * fs_rm()
  * Deletes a file from the current working directory.
- *
- * Requirements:
- * - File must exist
- * - Must be a file (not a directory)
- * - Must not be currently opened
- *
- * Process:
- * 1. Find the directory entry
- * 2. Validate it's a file and not open
- * 3. Mark the entry as deleted (set first byte to 0xE5)
- * 4. Free all clusters in the file's cluster chain
  */
 bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files) {
+
     if (!filename || filename[0] == '\0') {
         printf("Error: rm requires a filename\n");
         return false;
@@ -1228,6 +1215,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
             if (strncmp(open_files->files[i].filePath, dir_path, strlen(dir_path)) == 0) {
                 printf("Error: directory '%s' contains an open file\n", dirname);
                 free(cwd.cwd);
+
                 return false;
             }
 
@@ -1237,6 +1225,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
 
     /* Mark directory entry as deleted (0xE5) */
     unsigned char deleted_marker = 0xE5;
+
     if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
         printf("Error: failed to seek to directory entry\n");
         return false;
@@ -1251,8 +1240,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
         free_cluster_chain(fs, start_cluster);
     }
 
-    /* Flush changes to disk */
-    fflush(fs->image);
+    fflush(fs->image); //force
 
     return true;
 }
@@ -1320,23 +1308,20 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
 }
 
 /* readFile()
- * Reads up to 'sizeToRead' bytes from the file 'filename' in the current
- *working directory of fs', starting at byte offset 'startOffset' within
- * the file. Data is written to stdout. Returns the number of bytes actually
- * read (may be less than requested if EOF is reached).
+ * reads from filename in cwd , 0 on error or none read
  */
-uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, FileSystem* fs) {
+uint32_t readFile(uint32_t start_offset, uint32_t size_to_read, char* filename, FileSystem* fs) {
 
     if (!filename || !fs || !fs->image) 
         return 0;
 
     uint32_t file_size = getFileSize(filename, fs);
 
-    if (startOffset >= file_size) 
+    if (start_offset >= file_size) 
         return 0;
 
-    uint32_t remaining = file_size - startOffset;
-    uint32_t to_read = (sizeToRead < remaining) ? sizeToRead : remaining;
+    uint32_t remaining = file_size - start_offset;
+    uint32_t to_read = (size_to_read < remaining) ? size_to_read : remaining;
 
     if (to_read == 0) 
         return 0;
@@ -1350,9 +1335,9 @@ uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, Fil
     if (cur_cluster == 0) 
         return 0;
 
-    //Advance to the cluster that contains startOffset 
-    uint32_t cluster_index = startOffset / cluster_size;
-    uint32_t offset_in_cluster = startOffset % cluster_size;
+    //Advance to the cluster that contains start_offset 
+    uint32_t cluster_index = start_offset / cluster_size;
+    uint32_t offset_in_cluster = start_offset % cluster_size;
 
     for (uint32_t i = 0; i < cluster_index; ++i) {
 
@@ -1409,5 +1394,186 @@ uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, Fil
 
     free(buf);
     return bytes_read;
+}
+
+
+/* writeToFile()
+ * writes the bytes to filename
+ * returns the number of bytes written or 0 on error or none.
+ */
+uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t start_offset, FileSystem* fs) {
+
+    if (!filename || !bytes_to_write || !fs || !fs->image)
+        return 0;
+
+    size_t write_len = strlen(bytes_to_write);
+
+    if (write_len == 0)
+        return 0;
+
+    char short_name[11];
+    build_short_name(short_name, filename);
+
+    uint32_t start_cluster = 0;
+    uint8_t attr = 0;
+
+    long entry_offset = find_directory_entry_offset(fs, short_name, &start_cluster, &attr);
+
+    if (entry_offset == -1) //silly kid
+        return 0;
+
+    if (attr & 0x10) //dir check
+        return 0; 
+
+    uint32_t old_size = getFileSize((char*)filename, fs);
+
+    //bound to EOF
+    uint32_t write_offset = (start_offset > old_size) ? old_size : start_offset;
+
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+
+    //get cluster or make one
+    uint32_t cur_cluster = start_cluster;
+
+    if (cur_cluster == 0) {
+
+        uint32_t nc = allocate_cluster(fs);
+
+        if (nc == 0) 
+            return 0;
+
+        cur_cluster = nc;
+        start_cluster = nc;
+    }
+
+    //get cluster range
+    uint32_t cluster_count = 1;
+    uint32_t last_cluster = cur_cluster;
+
+    while (true) {
+
+        uint32_t next = read_fat_entry(fs, last_cluster);
+
+        if (next >= FAT32_EOC) 
+            break;
+
+        last_cluster = next;
+        cluster_count++;
+
+        if (cluster_count > fs->total_clusters + 7) 
+            break;
+    }
+
+    //calc cluster size increaase needed?
+    uint32_t final_needed_size = write_offset + (uint32_t)write_len;
+    uint32_t required_clusters = (final_needed_size + cluster_size - 1) / cluster_size;
+
+    if (required_clusters > cluster_count) {
+
+        uint32_t need = required_clusters - cluster_count;
+
+        for (uint32_t i = 0; i < need; ++i) {
+
+            uint32_t nc = allocate_cluster(fs);
+
+            if (nc == 0) 
+                return 0;
+
+            write_fat_entry(fs, last_cluster, nc);
+
+            write_fat_entry(fs, nc, FAT32_EOC);
+
+            last_cluster = nc;
+            ++cluster_count;
+        }
+    }
+
+    /* Find the cluster that contains write_offset */
+    uint32_t target_cluster = start_cluster;
+
+    uint32_t skip_clusters = write_offset / cluster_size;
+
+    uint32_t off_in_cluster = write_offset % cluster_size;
+
+    for (uint32_t i = 0; i < skip_clusters; ++i) {
+
+        uint32_t next = read_fat_entry(fs, target_cluster);
+
+        if (next >= FAT32_EOC)
+            break;
+
+        target_cluster = next;
+    }
+
+    const char *src = bytes_to_write;
+
+    uint32_t remaining = (uint32_t) write_len;
+
+    uint32_t written = 0;
+
+    unsigned char *buf = (unsigned char*) malloc(cluster_size);
+
+    if (!buf) 
+        return 0;
+
+    while (remaining > 0) {
+
+        long cluster_off = cluster_to_offset(fs, target_cluster);
+
+        if (fseek(fs->image, cluster_off + off_in_cluster, SEEK_SET) != 0) 
+            break;
+
+        uint32_t can = cluster_size - off_in_cluster;
+        uint32_t to_write = (remaining < can) ? remaining : can;
+
+        if (fwrite(src, 1, to_write, fs->image) != to_write) 
+            break;
+
+        written += to_write;
+        remaining -= to_write;
+        src += to_write;
+
+        off_in_cluster = 0;
+
+        if (remaining > 0) {
+
+            uint32_t next = read_fat_entry(fs, target_cluster);
+
+            if (next >= FAT32_EOC) 
+                break;
+
+            target_cluster = next;
+        }
+    }
+
+    free(buf);
+
+    /* Update directory entry: first cluster (if changed) and file size */
+    unsigned char entry[32];
+    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) 
+        return written;
+    if (fread(entry, 1, 32, fs->image) != 32) 
+        return written;
+
+    entry[20] = (unsigned char)((start_cluster >> 16) & 0xFF);
+    entry[21] = (unsigned char)((start_cluster >> 24) & 0xFF);
+    entry[26] = (unsigned char)(start_cluster & 0xFF);
+    entry[27] = (unsigned char)((start_cluster >> 8) & 0xFF);
+
+    uint32_t final_size = (old_size > (write_offset + written)) ? old_size : (write_offset + written);
+
+    entry[28] = (unsigned char)(final_size & 0xFF);
+    entry[29] = (unsigned char)((final_size >> 8) & 0xFF);
+    entry[30] = (unsigned char)((final_size >> 16) & 0xFF);
+    entry[31] = (unsigned char)((final_size >> 24) & 0xFF);
+
+    if (fseek(fs->image, entry_offset, SEEK_SET) == 0) {
+        fwrite(entry, 1, 32, fs->image);
+    }
+
+    fflush(fs->image);
+
+    return written;
 }
 

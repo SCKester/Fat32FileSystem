@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "lexer.h"
-#include "fat32.h"
 
 typedef struct { 
     char fileName[12]; // null terminated file name
@@ -20,6 +19,11 @@ struct OpenFiles {
 };
 
 struct OpenFiles getOpenFilesStruct();
+
+typedef struct {
+    size_t size; //size of cwd arr
+    char* cwd; //cwd is expected to be a dynamically allocated array freed by creator
+} CurrentDirectory;
 
 //scans for first available index and creates open file entry on that index , returns the index , -1 if error
 //offset set to 0

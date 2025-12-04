@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "lexer.h"
 #include "fat32.h"
 #include "utils.h"
@@ -9,19 +8,6 @@
 /*
  * Main interactive shell for FAT32 project.
  *
- * Supported commands (Part 1 + Part 2):
- *   info        → print filesystem metadata
- *   mkdir NAME  → create directory in cwd
- *   creat NAME  → create empty file in cwd
- *   ls          → list directory contents
- *   cd DIRNAME  → change current working directory
- *   exit        → quit the shell
- *
- * The shell repeatedly:
- *   1. Prints a prompt: "<image>/>"
- *   2. Reads a line using get_input()
- *   3. Tokenizes via get_tokens()
- *   4. Dispatches to the correct handler
  */
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -277,31 +263,65 @@ int main(int argc, char *argv[]) {
                 
             }
             else if (strcmp(cmd, "rm") == 0) {
-                /*
-                * rm [FILENAME]
-                * Deletes a file from the current working directory.
-                * Error if file does not exist, is a directory, or is opened.
-                */
+
                 if (tokens->size != 2) {
                     printf("Error: usage: rm [FILENAME]\n");
                 } else {
                     if (!fs_rm(&fs, tokens->items[1], &openFiles)) {
-                        /* fs_rm prints its own error message */
+                        printf("Error: error removing file.\n");
                     }
                 }
             }
             else if (strcmp(cmd, "rmdir") == 0) {
-                /*
-                * rmdir [DIRNAME]
-                * Removes a directory from the current working directory.
-                * Error if directory does not exist, is not a directory,
-                * is not empty, or contains open files.
-                */
+
                 if (tokens->size != 2) {
                     printf("Error: usage: rmdir [DIRNAME]\n");
                 } else {
                     if (!fs_rmdir(&fs, tokens->items[1], &openFiles)) {
-                        /* fs_rmdir prints its own error message */
+                        printf("Error: error removing directory.\n");
+                    }
+                }
+            }
+            else if ( strcmp( cmd , "write" ) == 0 ) {
+                
+                if( tokens->size != 3) {
+                    printf("Error: Usage , write [FILENAME] {STRING}\n");
+                }
+                else {
+
+                    if( checkIsFile( tokens->items[1] , &fs ) == -1 ) {
+                        printf("Error: file not found...\n");
+                    }
+                    else {
+
+                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles ) == 0 ) {
+                            printf("Error: file is not open..");
+                        }
+                        else {
+                            
+                            OpenFile* file = getOpenFile( &openFiles , getStartCluster( tokens->items[1] , &fs ) );
+
+                            if( file == NULL ) {
+                                printf("Error: cannot get open file.\n");
+                            }
+                            else {
+
+                                if( file->permissions == 1 ) { //read only permissions
+                                    printf("Error: file opened in read only mode.\n");
+                                }
+                                else {
+                                    //file now assumed to be open and valid
+                                    uint32_t bytesWritten = writeToFile( tokens->items[1] , tokens->items[2] , file->offset ,  &fs  ); 
+
+                                    if ( bytesWritten == 0 ) {
+                                        printf("No Bytes Written...\n");
+                                    }
+                                    else {
+                                        file->offset += bytesWritten;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

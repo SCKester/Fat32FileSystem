@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include "utils.h"
 
 /*
  * FAT32 Boot Sector (BIOS Parameter Block)
@@ -41,11 +42,6 @@ typedef struct {
 
 } FileSystem;
 
-typedef struct {
-    size_t size; //size of cwd arr
-    char* cwd; //cwd is expected to be a dynamically allocated array freed by creator
-} CurrentDirectory;
-
 /* Mount/unmount functions */
 bool fs_mount(FileSystem *fs, const char *image_path);
 void fs_unmount(FileSystem *fs);
@@ -73,19 +69,15 @@ CurrentDirectory getcwd(FileSystem *fs);
 size_t checkExists(char* filename, FileSystem* fs);
 
 size_t checkIsFile(char* filename, FileSystem* fs);
+
 uint32_t getStartCluster(char* filename, FileSystem* fs);
 
 uint32_t getFileSize(char* filename, FileSystem* fs);
 
 uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, FileSystem* fs);
 
-/* Forward declaration */
-struct OpenFiles;
+uint32_t writeToFile(const char* filename, const char* bytesToWrite, uint32_t startOffset, FileSystem* fs);
 
-/* Part 6: Delete commands */
-/* Delete a file from the current working directory */
 bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files);
 
-/* Remove a directory from the current working directory */
 bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files);
-
