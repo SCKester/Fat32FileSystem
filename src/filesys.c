@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
               else if (strcmp(cmd, "mkdir") == 0) {
                 /*
                 * mkdir [DIRNAME]
-                * DIRNAME must be a short FAT 8.3 style name (1–11 chars).
+                * DIRNAME must be a short FAT style name (1–11 chars).
                 * fs_mkdir() handles cluster allocation and directory entry creation.
                 */
                 if (tokens->size != 2) {
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
                  /*
                 * creat [FILENAME]
                 * Creates an empty file (size=0).
-                * No data cluster is allocated yet.
+                * Singe Data cluster allocated
                 */
                 if (tokens->size != 2) {
                     printf("Error: usage: creat [FILENAME]\n");

@@ -1248,6 +1248,10 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     return true;
 }
 
+/*
+* fs_mv()
+* moves a file, returns false on failure and may print an error message
+*/
 bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, CurrentDirectory *cwd_info)
 {
     if (!fs || !src || !dest) {
@@ -1272,7 +1276,7 @@ bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, 
         return false;
     }
 
-    /* Enforce: file must be closed */
+    /* file must be closed */
     uint32_t start_cluster = getStartCluster(src_short, fs);
     if (start_cluster != 0 &&
         checkIsOpen(start_cluster, open_files, cwd_info->cwd, src) != 0) {
@@ -1291,7 +1295,7 @@ bool fs_mv(FileSystem *fs, char *src, char *dest, struct OpenFiles *open_files, 
         return false;
     }
 
-    /* Case 1: dest exists and is a directory -> move into that directory
+    /* Case 1: dest exists and is a directory , move into that directory
        (we keep the original name). */
     if (dest_offset >= 0 && (dest_attr & 0x10)) {
         uint32_t target_dir_cluster = getStartCluster(dest_short, fs);
