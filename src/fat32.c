@@ -1419,7 +1419,7 @@ uint32_t getFileSize(char* filename, FileSystem* fs) {
     return file_size;
 }
 
-/* readFile()
+/* readFile()  MULTICLUSTER SAFE
  * reads from filename in cwd , 0 on error or none read
  */
 uint32_t readFile(uint32_t start_offset, uint32_t size_to_read, char* filename, FileSystem* fs) {
@@ -1509,7 +1509,7 @@ uint32_t readFile(uint32_t start_offset, uint32_t size_to_read, char* filename, 
 }
 
 
-/* writeToFile()
+/* writeToFile()  NOT MULTICLUSTER SAFE
  * writes the bytes to filename
  * returns the number of bytes written or 0 on error or none.
  */
