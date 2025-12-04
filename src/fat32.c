@@ -630,92 +630,38 @@ done:
 }
 
 
-/* NOT MULTICLUSTER SAFE
+/* MULTICLUSTER SAFE
  * Changes the current working directory to DIRNAME.
  * Returns true on success, false on failure.
  * Prints an error message if DIRNAME does not exist or is not a directory.
  */
 bool fs_cd(FileSystem *fs, const char *dirname) {
+
     if (!dirname || dirname[0] == '\0') {
         printf("Error: cd requires a directory name\n");
         return false;
     }
 
-    /* Build FAT short name */
-    char short_name[11];
-    build_short_name(short_name, dirname);
 
-    /* Read directory entries to find the target */
-    const Fat32BootSector *bpb = &fs->bpb;
-    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
+    uint32_t entry_cluster_num = 0; //this holds the starting cluster number of filename on success
+    uint32_t cluster_offset = 0; //this holds the offset of the start of the entry in the cluster on success
 
-    unsigned char *buf = (unsigned char *)malloc(cluster_size);
-    if (!buf) {
-        printf("Error: memory allocation failed\n");
+    unsigned char* entry = getEntry( (char*)dirname , fs , &entry_cluster_num , &cluster_offset );
+
+    if( entry == NULL ) {
+        printf("Error: directory does not exist.\n");
         return false;
     }
 
-    long dir_offset = cluster_to_offset(fs, fs->cwd_cluster);
-    if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
-        printf("Error: failed to seek to directory cluster\n");
-        free(buf);
+    if ( !(entry[11] & 0x10) ) { //check is directory
+        printf("Error: Not a Directory.\n");
         return false;
     }
 
-    if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
-        printf("Error: failed to read directory cluster\n");
-        free(buf);
-        return false;
-    }
+    //we know dirname is a directory in cwd and now have its entry
 
-    /* Search for the directory entry */
-    bool found = false;
-    uint32_t target_cluster = 0;
-
-    for (uint32_t off = 0; off < cluster_size; off += 32) {
-        unsigned char *entry = buf + off;
-
-        /* 0x00 means this and all following entries are free */
-        if (entry[0] == 0x00) {
-            break;
-        }
-
-        /* 0xE5 means deleted, skip */
-        if (entry[0] == 0xE5) {
-            continue;
-        }
-
-        /* Skip long filename entries (attribute 0x0F) */
-        unsigned char attr = entry[11];
-        if ((attr & 0x0F) == 0x0F) {
-            continue;
-        }
-
-        /* Compare short name */
-        if (memcmp(entry, short_name, 11) == 0) {
-            /* Check if it's a directory (attribute 0x10) */
-            if ((attr & 0x10) == 0) {
-                printf("Error: '%s' is not a directory\n", dirname);
-                free(buf);
-                return false;
-            }
-
-            /* Extract the cluster number from the entry */
-            /* Cluster is stored as: high word at bytes 20-21, low word at bytes 26-27 (little-endian) */
-            target_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
-                           ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
-
-            found = true;
-            break;
-        }
-    }
-
-    free(buf);
-
-    if (!found) {
-        printf("Error: '%s' does not exist\n", dirname);
-        return false;
-    }
+    uint32_t target_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                    ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
     /* In FAT32, if target cluster is 0, it means the root directory */
     if (target_cluster == 0) {
