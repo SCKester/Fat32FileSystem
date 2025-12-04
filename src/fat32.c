@@ -630,7 +630,7 @@ done:
 }
 
 
-/* MULTICLUSTER SAFE
+/* NOT MULTICLUSTER SAFE
  * Changes the current working directory to DIRNAME.
  * Returns true on success, false on failure.
  * Prints an error message if DIRNAME does not exist or is not a directory.
@@ -1104,11 +1104,13 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
     const Fat32BootSector *bpb = &fs->bpb;
     uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
+
     unsigned char *buf = (unsigned char *) malloc(cluster_size);
 
     if (!buf) return false;
 
     long dir_offset = cluster_to_offset(fs, dir_cluster);
+
 
     if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
         free(buf);
@@ -1124,11 +1126,15 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
 
         unsigned char *entry = buf + off;
 
-        if (entry[0] == 0x00) break;
-        if (entry[0] == 0xE5) continue;
+        if (entry[0] == 0x00) 
+            break;
+        if (entry[0] == 0xE5) 
+            continue;
 
         unsigned char attr = entry[11];
-        if ((attr & 0x0F) == 0x0F) continue;
+
+        if ((attr & 0x0F) == 0x0F) 
+            continue;
 
         /* Skip "." and ".." */
         if (entry[0] == '.' && (entry[1] == ' ' || entry[1] == '.')) {
@@ -1208,12 +1214,13 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
     return true;
 }
 
-/* NOT MULTICLUSTER SAFE
+/* MULTICLUSTER SAFE
  * fs_rmdir()
  * Removes a directory from the current working directory.
  * 
  */
 bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files) {
+
     if (!dirname || dirname[0] == '\0') {
         printf("Error: rmdir requires a directory name\n");
         return false;
@@ -1225,25 +1232,26 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
         return false;
     }
 
-    /* Convert to FAT short name */
-    char short_name[11];
-    build_short_name(short_name, dirname);
+    uint32_t entry_cluster_num = 0; //this holds the starting cluster number of filename on success
+    uint32_t cluster_offset = 0; //this holds the offset of the start of the entry in the cluster on success
 
-    /* Find the directory entry */
-    uint32_t start_cluster;
-    uint8_t attr;
-    long entry_offset = find_directory_entry_offset(fs, short_name, &start_cluster, &attr);
+    unsigned char* entry = getEntry( (char*)dirname , fs , &entry_cluster_num , &cluster_offset );
 
-    if (entry_offset == -1) {
-        printf("Error: directory '%s' does not exist\n", dirname);
+    if( entry == NULL ) {
+        printf("Error: file does not exist.\n");
         return false;
     }
 
     /* Check if it's not a directory */
-    if (!(attr & 0x10)) {
+    if (!(entry[11] & 0x10)) {
         printf("Error: '%s' is not a directory\n", dirname);
         return false;
     }
+
+
+    uint32_t start_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
+                          ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
+
 
     /* Check if directory is empty */
     if (!is_directory_empty(fs, start_cluster)) {
@@ -1254,7 +1262,8 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     /* Mark directory entry as deleted (0xE5) */
     unsigned char deleted_marker = 0xE5;
 
-    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
+
+    if (fseek(fs->image, ( cluster_to_offset( fs , entry_cluster_num ) + cluster_offset ) , SEEK_SET) != 0) {
         printf("Error: failed to seek to directory entry\n");
         return false;
     }
@@ -1264,7 +1273,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     }
 
     /* Free the directory's cluster */
-    if (start_cluster >= 2) {
+    if (entry_cluster_num >= 2) {
         free_cluster_chain(fs, start_cluster);
     }
 
