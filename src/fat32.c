@@ -332,7 +332,7 @@ static int dir_scan_for_entry(FileSystem *fs,
 
 /* MULTICLUSTER SAFE
 * scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting byte
-* or NULL if not found returns cluster number of entry if found in cluster num , else NULL , also returns offset inside cluster
+* or NULL if not found returns cluster number of entry if found in cluster num , else NULL , also returns offset in cluster in 'cluster_offset'
 */
 unsigned char* getEntry(char* filename, FileSystem* fs , uint32_t* cluster_num , uint32_t* cluster_offset ) {
     
