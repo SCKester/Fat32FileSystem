@@ -1,11 +1,12 @@
 # FAT32 File System Utility
 
-[Description]
+A small psuedo filesystem driver implementing FAT32 standard and showcasing ability to work with file system drivers in C.
+can read and werite and navigate directories on a psuedo disk image with opened and closed files.
 
 ## Group Members
 - **John Doe**: jd19@fsu.edu
 - **Jane Smith**: js19@fsu.edu
-- **Alex Brown**: ab19@fsu.edu
+- **HUGH LONG**: hal20a@fsu.edu
 ## Division of Labor
 
 ### Part 1: Mounting the Image
@@ -22,19 +23,15 @@
 
 ### Part 4: Read
 - **Responsibilities**: [Description]
-- **Assigned to**: Alex Brown, Jane Smith
+- **Assigned to**: HUGH LONG
 
 ### Part 5: Update
 - **Responsibilities**: [Description]
-- **Assigned to**: Alex Brown, Jane Smith
+- **Assigned to**: HUGH LONG
 
 ### Part 6: Delete
 - **Responsibilities**: [Description]
 - **Assigned to**: Jane Smith
-
-### Extra Credit
-- **Responsibilities**: [Description]
-- **Assigned to**: Alex Brown
 
 ## File Listing
 ```
@@ -42,11 +39,13 @@ filesys/
 │
 ├── src/
 │ ├── lexer.c
-│ └── ...
+│ └── utils.c
+| |__ fat32.c
 │
 ├── include/
 │ └── lexer.h
-│ └── ...
+│ └── utils.h
+| |__ fat32.h
 │
 ├── README.md
 └── Makefile
@@ -54,8 +53,7 @@ filesys/
 ## How to Compile & Execute
 
 ### Requirements
-- **Compiler**: e.g., `gcc` for C/C++, `rustc` for Rust.
-- **Dependencies**: List any libraries or frameworks necessary (rust only).
+- **Compiler**: `gcc`
 
 ### Compilation
 For a C/C++ example:
@@ -65,9 +63,8 @@ make
 This will build the executable in bin/filesys
 ### Execution
 ```bash
-make run
+./bin/filesys fat32.img
 ```
-or ./bin/filesys fat32.img
 
 Once launched, the shell prompt will appear:
 

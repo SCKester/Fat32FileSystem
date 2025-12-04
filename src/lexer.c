@@ -54,11 +54,59 @@ tokenlist *get_tokens(char *input) {
     strcpy(buf, input);
 
     tokenlist *tokens = new_tokenlist();
-    char *tok = strtok(buf, " ");
+    int i = 0;
 
-    while (tok != NULL) {
-        add_token(tokens, tok);
-        tok = strtok(NULL, " ");
+    while (buf[i] != '\0') {
+
+        while (buf[i] != '\0' && buf[i] == ' ') {
+            i++;
+        }
+
+        if (buf[i] == '\0') break;
+
+
+        if (buf[i] == '"') {
+
+            i++; 
+            int start = i;
+
+            while (buf[i] != '\0' && buf[i] != '"') {
+                i++;
+            }
+
+            int end = i;
+
+
+            char *token = (char *)malloc(end - start + 1);
+            strncpy(token, &buf[start], end - start);
+            token[end - start] = '\0';
+
+            add_token(tokens, token);
+            free(token);
+
+            if (buf[i] == '"') {
+                i++;
+            }
+        } else {
+
+            int start = i;
+
+            while (buf[i] != '\0' && buf[i] != ' ') {
+                i++;
+            }
+
+            int end = i;
+
+
+            char *token = (char *)malloc(end - start + 1);
+
+            strncpy(token, &buf[start], end - start);
+            
+            token[end - start] = '\0';
+
+            add_token(tokens, token);
+            free(token);
+        }
     }
 
     free(buf);

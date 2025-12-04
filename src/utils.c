@@ -2,10 +2,13 @@
 #include <stdio.h>
 
 //-1 if open , 0 if not open
-int checkIsOpen( uint32_t startCluster , struct OpenFiles* files ) {
+int checkIsOpen( uint32_t startCluster , struct OpenFiles* files , char* cwd , char* filename ) {
 
     for ( size_t i = 0 ; i < 10 ; i++ ) {
-        if( files->files[i].open == 1 && files->files[i].startCluster == startCluster ) {
+
+        OpenFile* file = &(files->files[i]);
+
+        if( file->open == 1 && file->startCluster == startCluster && strcmp( file->fileName , filename) == 0 && strcmp( file->filePath , cwd ) == 0 ) {
             return -1;
         }
     }
@@ -33,11 +36,11 @@ struct OpenFiles getOpenFilesStruct() { //returnns intialized openfiles object
 //we can do a bit of cheating here because we know files will only be opened in the cwd
 //and that all files will only be scanned in the cwd
 // -1 if failed , 0 if succeeded
-int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t startCluster , CurrentDirectory direc ) {
+int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t startCluster , CurrentDirectory* direc ) {
     
     size_t index = -1;
 
-    if( checkIsOpen( startCluster , files ) == -1 ) {
+    if( checkIsOpen( startCluster , files , direc->cwd , fileName ) == -1 ) {
         return -1;
     }
 
@@ -60,9 +63,9 @@ int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t st
     files->files[index].open = 1;
     files->files[index].startCluster = startCluster;
 
-    char* path = (char*) malloc( sizeof(char) * direc.size + 1 );
+    char* path = (char*) malloc( sizeof(char) * direc->size + 1 );
 
-    strcpy( path , direc.cwd );
+    strcpy( path , direc->cwd );
 
     files->files[index].filePath = path;
 
@@ -70,16 +73,23 @@ int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t st
 }
 
 //returns -1 on error, otherwise index of closed file
-int closeFile( struct OpenFiles* files , uint32_t startCluster ) {
+int closeFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirectory* direc , char* filename ) {
 
-    if( checkIsOpen( startCluster , files ) == 0 ) {
+    if( checkIsOpen( startCluster , files , direc->cwd , filename ) == 0 ) {
         return -1;
     }
 
     size_t index = -1;
 
     for ( int i = 0 ; i < 10 ; i++ ) {
-        if( files->files[i].startCluster == startCluster ) {
+
+        OpenFile* file = &(files->files[i]);
+
+        if( file->open == 1 && 
+            file->startCluster == startCluster && 
+            strcmp( file->fileName , filename) == 0 && 
+            strcmp( file->filePath , direc->cwd ) == 0)  {
+
             index = i;
             break;
         }
@@ -195,13 +205,20 @@ int writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t 
 }
 
 //returns NULL on not found
-OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster ) {
+OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirectory* direc , char* filename  ) {
 
     OpenFile* file = NULL;
 
     for ( size_t i = 0 ; i < 10 ; i++ ) {
-        if( files->files[i].startCluster == startCluster ) {
-            file = & files->files[i];
+
+        OpenFile* curFile = &(files->files[i]);
+
+        if( curFile->open == 1 && 
+            curFile->startCluster == startCluster && 
+            strcmp( curFile->fileName , filename) == 0 && 
+            strcmp( curFile->filePath , direc->cwd ) == 0)  {
+
+            file = curFile;
             break;
         }
     }

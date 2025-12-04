@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
 
                         CurrentDirectory direc = getcwd( &fs );
 
-                        if( openFile( &openFiles , tokens->items[1] , getReadWrite( tokens ) , getStartCluster( tokens->items[1] , &fs ) , direc ) == -1 ) {
+                        if( openFile( &openFiles , tokens->items[1] , getReadWrite( tokens ) , getStartCluster( tokens->items[1] , &fs ) , &direc ) == -1 ) {
                             printf("Error: cannot open file, likely already open.\n");
                         }
                         free( direc.cwd );
@@ -148,12 +148,12 @@ int main(int argc, char *argv[]) {
 
                         uint32_t startCluster = getStartCluster( tokens->items[1] , &fs );
 
-                        if( checkIsOpen( startCluster , &openFiles ) == 0 ) { //file not open , error
+                        if( checkIsOpen( startCluster , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) { //file not open , error
                             printf("Error: file is not open.\n");
                         }
                         else {
                             //file is open and a file, we can close it
-                            if( closeFile( &openFiles , startCluster ) == -1)
+                            if( closeFile( &openFiles , startCluster , &cwd , tokens->items[1] ) == -1)
                                 printf("Error: cannot close file...\n");
                         }
                     }
@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
                         }
                         else {
 
-                            if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles ) == 0 ) { //file not open, error
+                            if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) { //file not open, error
                                 printf("Error: file, %s is not open in cwd\n" , tokens->items[2] );
                             }
                             else {
@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
                     }
                     else {
 
-                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles ) == 0 ) {
+                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) {
                             printf("Error: file is not open...\n");
                         }
                         else {
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
                             //now check open to read
 
                             OpenFile* file = getOpenFile( &openFiles , 
-                                getStartCluster( tokens->items[1] , &fs ) );
+                                getStartCluster( tokens->items[1] , &fs ) , &cwd , tokens->items[1] );
 
                             if( file == NULL || ( file->permissions != 1 && file->permissions != 3 ) ) {
 
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
                 if (tokens->size != 2) {
                     printf("Error: usage: rm [FILENAME]\n");
                 } else {
-                    if (!fs_rm(&fs, tokens->items[1], &openFiles)) {
+                    if (!fs_rm(&fs, tokens->items[1], &openFiles , cwd.cwd )) {
                         printf("Error: error removing file.\n");
                     }
                 }
@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
             else if ( strcmp( cmd , "write" ) == 0 ) {
                 
                 if( tokens->size != 3) {
+                    printf("error: %lu" , tokens->size);
                     printf("Error: Usage , write [FILENAME] {STRING}\n");
                 }
                 else {
@@ -294,12 +295,12 @@ int main(int argc, char *argv[]) {
                     }
                     else {
 
-                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles ) == 0 ) {
+                        if( checkIsOpen( getStartCluster( tokens->items[1] , &fs ) , &openFiles , cwd.cwd , tokens->items[1] ) == 0 ) {
                             printf("Error: file is not open..");
                         }
                         else {
                             
-                            OpenFile* file = getOpenFile( &openFiles , getStartCluster( tokens->items[1] , &fs ) );
+                            OpenFile* file = getOpenFile( &openFiles , getStartCluster( tokens->items[1] , &fs ) , &cwd , tokens->items[1] );
 
                             if( file == NULL ) {
                                 printf("Error: cannot get open file.\n");
@@ -311,7 +312,7 @@ int main(int argc, char *argv[]) {
                                 }
                                 else {
                                     //file now assumed to be open and valid
-                                    uint32_t bytesWritten = writeToFile( tokens->items[1] , tokens->items[2] , file->offset ,  &fs  ); 
+                                    uint32_t bytesWritten = writeToFile( tokens->items[1] , tokens->items[2] , file->offset ,  &fs , file ); 
 
                                     if ( bytesWritten == 0 ) {
                                         printf("No Bytes Written...\n");

@@ -804,12 +804,15 @@ CurrentDirectory getcwd( FileSystem *fs ) {
     //compute total length for the joined path: leading '/', segments and '/' between
     size_t total = 1; 
 
-    for (size_t i = 0; i < nseg; ++i) total += strlen(segments[i]) + 1;
+    for (size_t i = 0; i < nseg; ++i) 
+        total += strlen(segments[i]) + 1;
+
 
     char* path = (char*) malloc(total + 1);
+
     if (!path) {
 
-        for (size_t i = 0; i < nseg; ++i) 
+        for (size_t i = 0; i < nseg; i++) 
             free(segments[i]);
 
         free(segments);
@@ -821,7 +824,7 @@ CurrentDirectory getcwd( FileSystem *fs ) {
     *p++ = '/';
 
     //segments are from child->parent; we need to print in reverse 
-    for (size_t i = 0; i < nseg; ++i) {
+    for (size_t i = 0; i < nseg; i++) {
 
         char* seg = segments[nseg - 1 - i];
 
@@ -1037,7 +1040,7 @@ static void free_cluster_chain(FileSystem *fs, uint32_t start_cluster) {
     while (cluster >= 2 && cluster < 0x0FFFFFF8) {
 
         uint32_t next_cluster = read_fat_entry(fs, cluster);
-        
+
         write_fat_entry(fs, cluster, 0x00000000);
         cluster = next_cluster;
     }
@@ -1096,7 +1099,7 @@ static bool is_directory_empty(FileSystem *fs, uint32_t dir_cluster) {
  * fs_rm()
  * Deletes a file from the current working directory.
  */
-bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files) {
+bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* cwd) {
 
     if (!filename || filename[0] == '\0') {
         printf("Error: rm requires a filename\n");
@@ -1130,7 +1133,7 @@ bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files) {
     }
 
     /* Check if file is open */
-    if (checkIsOpen(start_cluster, open_files) == -1) {
+    if (checkIsOpen(start_cluster, open_files , cwd , filename ) == -1) {
         printf("Error: file '%s' is currently open\n", filename);
         return false;
     }
@@ -1339,7 +1342,7 @@ uint32_t readFile(uint32_t start_offset, uint32_t size_to_read, char* filename, 
     uint32_t cluster_index = start_offset / cluster_size;
     uint32_t offset_in_cluster = start_offset % cluster_size;
 
-    for (uint32_t i = 0; i < cluster_index; ++i) {
+    for (uint32_t i = 0; i < cluster_index; i++ ) {
 
         uint32_t next = read_fat_entry(fs, cur_cluster);
 
@@ -1401,7 +1404,7 @@ uint32_t readFile(uint32_t start_offset, uint32_t size_to_read, char* filename, 
  * writes the bytes to filename
  * returns the number of bytes written or 0 on error or none.
  */
-uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t start_offset, FileSystem* fs) {
+uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t start_offset, FileSystem* fs , OpenFile* file ) {
 
     if (!filename || !bytes_to_write || !fs || !fs->image)
         return 0;
@@ -1427,6 +1430,8 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
     uint32_t old_size = getFileSize((char*)filename, fs);
 
+    //printf("file size: %u\n" , old_size);
+
     //bound to EOF
     uint32_t write_offset = (start_offset > old_size) ? old_size : start_offset;
 
@@ -1438,14 +1443,16 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
     if (cur_cluster == 0) {
 
-        uint32_t nc = allocate_cluster(fs);
+        uint32_t new_cluster = allocate_cluster(fs);
 
-        if (nc == 0) 
+        if (new_cluster == 0) 
             return 0;
 
-        cur_cluster = nc;
-        start_cluster = nc;
+        cur_cluster = new_cluster;
+        start_cluster = new_cluster;
     }
+
+    file->startCluster = cur_cluster; //set new start cluster for id and usage
 
     //get cluster range
     uint32_t cluster_count = 1;
@@ -1473,30 +1480,30 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
         uint32_t need = required_clusters - cluster_count;
 
-        for (uint32_t i = 0; i < need; ++i) {
+        for (uint32_t i = 0; i < need; i++ ) {
 
-            uint32_t nc = allocate_cluster(fs);
+            uint32_t new_cluster = allocate_cluster(fs);
 
-            if (nc == 0) 
+            if (new_cluster == 0) 
                 return 0;
 
-            write_fat_entry(fs, last_cluster, nc);
+            write_fat_entry(fs, last_cluster, new_cluster);
 
-            write_fat_entry(fs, nc, FAT32_EOC);
+            write_fat_entry(fs, new_cluster, FAT32_EOC);
 
-            last_cluster = nc;
+            last_cluster = new_cluster;
             ++cluster_count;
         }
     }
 
-    /* Find the cluster that contains write_offset */
+    //find cluster that contains write_offset
     uint32_t target_cluster = start_cluster;
 
     uint32_t skip_clusters = write_offset / cluster_size;
 
     uint32_t off_in_cluster = write_offset % cluster_size;
 
-    for (uint32_t i = 0; i < skip_clusters; ++i) {
+    for (uint32_t i = 0; i < skip_clusters; i++ ) {
 
         uint32_t next = read_fat_entry(fs, target_cluster);
 
@@ -1549,7 +1556,7 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
     free(buf);
 
-    /* Update directory entry: first cluster (if changed) and file size */
+    // update directory entry, first cluster (if changed) and file size 
     unsigned char entry[32];
     if (fseek(fs->image, entry_offset, SEEK_SET) != 0) 
         return written;

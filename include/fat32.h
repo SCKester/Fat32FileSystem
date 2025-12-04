@@ -76,8 +76,8 @@ uint32_t getFileSize(char* filename, FileSystem* fs);
 
 uint32_t readFile(uint32_t startOffset, uint32_t sizeToRead, char* filename, FileSystem* fs);
 
-uint32_t writeToFile(const char* filename, const char* bytesToWrite, uint32_t startOffset, FileSystem* fs);
+uint32_t writeToFile(const char* filename, const char* bytesToWrite, uint32_t startOffset, FileSystem* fs , OpenFile* file );
 
-bool fs_rm(FileSystem *fs, const char *filename, struct OpenFiles *open_files);
+bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* cwd);
 
 bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files);

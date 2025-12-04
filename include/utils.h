@@ -27,20 +27,20 @@ typedef struct {
 
 //scans for first available index and creates open file entry on that index , returns the index , -1 if error
 //offset set to 0
-int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t startCluster , CurrentDirectory direc );
+int openFile( struct OpenFiles* files ,  char* fileName , int mode , uint32_t startCluster , CurrentDirectory* direc );
 
 //closes file with starting cluster of StartCluster, returns index of closed file or -1 if not found
-int closeFile( struct OpenFiles* files , uint32_t startCluster );
+int closeFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirectory* direc , char* filename );
 
 void closeAllFiles( struct OpenFiles* files );
 
 //1 is read , 2 is write ,  3 is read/write - 0 is none or not valid
 size_t getReadWrite( tokenlist* tokens  );
 
-int checkIsOpen( uint32_t startCluster , struct OpenFiles* files );
+int checkIsOpen( uint32_t startCluster , struct OpenFiles* files , char* cwd , char* filename );
 
 void printOpenFiles( struct OpenFiles* files );
 
 int writeFileOffset( struct OpenFiles* files , uint32_t startCluster , uint32_t newOffset );
 
-OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster );
+OpenFile* getOpenFile( struct OpenFiles* files , uint32_t startCluster , CurrentDirectory* direc , char* filename  );
