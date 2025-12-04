@@ -111,7 +111,6 @@ void closeAllFiles( struct OpenFiles* files ) {
 
     for ( int i = 0 ; i < 10 ; i++ ) {
         if( files->files[i].open == 1 ) {
-            printf("index: %i" , i);
             free( files->files[i].filePath );
         }
     }
