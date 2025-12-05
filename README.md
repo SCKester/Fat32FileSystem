@@ -1,33 +1,33 @@
 # FAT32 File System Utility
 
 A small psuedo filesystem driver implementing FAT32 standard and showcasing ability to work with file system drivers in C.
-can read and werite and navigate directories on a psuedo disk image with opened and closed files.
+can read and write and navigate directories on a psuedo disk image with opened and closed files.
 
 ## Group Members
 - **James Fontaine**: jwf22c@fsu.edu
-- **Jane Smith**: js19@fsu.edu
+- **Steven Kester**: js19@fsu.edu
 - **HUGH LONG**: hal20a@fsu.edu
 ## Division of Labor
 
 ### Part 1: Mounting the Image
-- **Responsibilities**: [Description]
-- **Assigned to**: John Doe
+- **Responsibilities**: mount image and info and exit
+- **Assigned to**: Steven Kester
 
 ### Part 2: Navigation
 - **Responsibilities**: Implementing cd and ls 
 - **Assigned to**: James Fontaine
 
 ### Part 3: Create
-- **Responsibilities**: [Description]
-- **Assigned to**: Alex Brown
+- **Responsibilities**: creat and mkdir
+- **Assigned to**: Steven Kester
 
 ### Part 4: Read
-- **Responsibilities**: [Description]
+- **Responsibilities**: implement ls , open , lsof , lseek , and read
 - **Assigned to**: HUGH LONG
 
 ### Part 5: Update
-- **Responsibilities**: [Description]
-- **Assigned to**: HUGH LONG
+- **Responsibilities**: Write and mv
+- **Assigned to**: HUGH LONG , Steven Kester
 
 ### Part 6: Delete
 - **Responsibilities**: Implementing rm and rmdir
@@ -73,10 +73,6 @@ Once launched, the shell prompt will appear:
 - **Bug 2**: This is bug 2.
 - **Bug 3**: This is bug 3.
 
-## Extra Credit
-- **Extra Credit 1**: [Extra Credit Option]
-- **Extra Credit 2**: [Extra Credit Option]
-- **Extra Credit 3**: [Extra Credit Option]
 
 ## Considerations
-[Description]
+
