@@ -69,7 +69,7 @@ This will build the executable in bin/filesys
 Once launched, the shell prompt will appear:
 
 ## Bugs
-- **Bug 1**: This is bug 1.
+- **Bug 1**: mv does not work on multicluster directories.
 - **Bug 2**: This is bug 2.
 - **Bug 3**: This is bug 3.
 
