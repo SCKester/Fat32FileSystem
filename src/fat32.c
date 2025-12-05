@@ -369,12 +369,12 @@ unsigned char* getEntry(char* filename, FileSystem* fs , uint32_t* cluster_num ,
             if (entry[0] == 0x00) 
                 goto not_found;
             if (entry[0] == 0xE5) 
-                continue; /* deleted */
+                continue; //deleted 
 
             unsigned char attr = entry[11];
 
             if ((attr & 0x0F) == 0x0F) 
-                continue; /* long name */
+                continue; //long name 
 
             if (memcmp(entry, target, 11) == 0) {
                 
@@ -443,8 +443,9 @@ static void write_directory_entry(FileSystem *fs,
 
 }
 
-/* fs_mkdir() NOT MULTICLUSTER SAFE
- *
+/*MULTICLUSTER SAFE
+ * Creates a directory and allocates a starting cluster.
+ * Scans the entire directory chain (following FAT) to find a free entry slot.
  * Returns true on success, false on failure.
  */
 bool fs_mkdir(FileSystem *fs, const char *name) {
@@ -460,55 +461,126 @@ bool fs_mkdir(FileSystem *fs, const char *name) {
         return false;
     }
 
-    /* Build FAT short name */
     char short_name[11];
     build_short_name(short_name, name);
 
-    long free_offset;
-    int exists;
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
-    if (dir_scan_for_entry(fs, fs->cwd_cluster, short_name,
-                           &free_offset, &exists) != 0) {
-        printf("Error: failed to read directory\n");
+    unsigned char *buf = (unsigned char *)malloc(cluster_size);
+    if (!buf) {
+        printf("Error: memory allocation failed\n");
         return false;
     }
 
-    if (exists) {
-        printf("Error: directory/file '%s' already exists\n", name);
-        return false;
+    //scnan
+    long free_offset = -1;
+    uint32_t cur = fs->cwd_cluster;
+
+    while (1) {
+        long dir_offset = cluster_to_offset(fs, cur);
+        if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
+            printf("Error: failed to seek to directory cluster\n");
+            free(buf);
+            return false;
+        }
+        if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
+            printf("Error: failed to read directory cluster\n");
+            free(buf);
+            return false;
+        }
+
+        for (uint32_t off = 0; off < cluster_size; off += 32) {
+            unsigned char *entry = buf + off;
+
+            //end of fre
+            if (entry[0] == 0x00) {
+                if (free_offset == -1) {
+                    free_offset = dir_offset + (long)off;
+                }
+                goto found_slot;
+            }
+
+            if (entry[0] == 0xE5) { //deleted
+                if (free_offset == -1) {
+                    free_offset = dir_offset + (long)off;
+                }
+                continue;
+            }
+
+            //skip
+            unsigned char attr = entry[11];
+
+            if ((attr & 0x0F) == 0x0F) 
+                continue;
+
+            //already exists
+            if (memcmp(entry, short_name, 11) == 0) {
+                printf("Error: directory/file '%s' already exists\n", name);
+                free(buf);
+                return false;
+            }
+        }
+
+        //next cluster
+        uint32_t next = read_fat_entry(fs, cur);
+
+        if (next == FAT32_EOC || next == 0) 
+            break;
+
+        cur = next;
     }
+
+    found_slot:
+
+    free(buf);
 
     if (free_offset == -1) {
-        printf("Error: directory is full, cannot create '%s'\n", name);
-        return false;
+        //allocate
+        uint32_t new_dir_cluster = allocate_cluster(fs);
+
+        if (new_dir_cluster == 0) {
+            printf("Error: no free clusters available to expand directory\n");
+            return false;
+        }
+
+        /// ad to linked list
+        uint32_t last_cluster = fs->cwd_cluster;
+        uint32_t next;
+
+        while ((next = read_fat_entry(fs, last_cluster)) != FAT32_EOC && next != 0) {
+            last_cluster = next;
+        }
+
+        write_fat_entry(fs, last_cluster, new_dir_cluster);
+        write_fat_entry(fs, new_dir_cluster, FAT32_EOC);
+
+        ///we have a free slot
+        free_offset = cluster_to_offset(fs, new_dir_cluster);
     }
 
-    /* Allocate a new cluster for the directory */
+    //oooof
     uint32_t new_cluster = allocate_cluster(fs);
-
     if (new_cluster == 0) {
         printf("Error: no free clusters available\n");
         return false;
     }
 
-    /* Initialize the new directory cluster with '.' and '..' */
+    //initi our fre slot!!!
     init_directory_cluster(fs, new_cluster, fs->cwd_cluster);
 
-    /* Create directory entry in current directory */
+    //make it a direc!
     write_directory_entry(fs, free_offset, short_name,
-                          0x10, /* directory attribute */
+                          0x10,
                           new_cluster,
-                          0 /* size */);
-
-    //printf("writing to offset %li" , free_offset);
+                          0);
 
     return true;
 }
 
-/* NOT MULTICLUSTER SAFE
+/* MULTICLUSTER SAFE
  * Creates an empty file with size = 0 and allocates a starting cluster.
- *  attribute = 0x20
- *  ALLOCATES a starting cluster for the file
+ * Scans the entire directory chain (following FAT) to find a free entry slot.
  */
 bool fs_creat(FileSystem *fs, const char *name) {
 
@@ -524,28 +596,121 @@ bool fs_creat(FileSystem *fs, const char *name) {
     }
 
     char short_name[11];
+
     build_short_name(short_name, name);
 
-    long free_offset;
-    int exists;
+    const Fat32BootSector *bpb = &fs->bpb;
+    uint32_t cluster_size = bpb->bytes_per_sector * bpb->sectors_per_cluster;
 
-    if (dir_scan_for_entry(fs, fs->cwd_cluster, short_name,
-                           &free_offset, &exists) != 0) {
-        printf("Error: failed to read directory\n");
+    unsigned char *buf = (unsigned char *)malloc(cluster_size);
+
+    if (!buf) {
+        printf("Error: memory allocation failed\n");
         return false;
     }
 
-    if (exists) {
-        printf("Error: directory/file '%s' already exists\n", name);
-        return false;
+    //scan
+    long free_offset = -1;
+    uint32_t cur = fs->cwd_cluster;
+
+    while (1) {
+
+        long dir_offset = cluster_to_offset(fs, cur);
+
+        if (fseek(fs->image, dir_offset, SEEK_SET) != 0) {
+
+            printf("Error: failed to seek to directory cluster\n");
+
+            free(buf);
+            return false;
+        }
+        if (fread(buf, 1, cluster_size, fs->image) != cluster_size) {
+
+            printf("Error: failed to read directory cluster\n");
+
+            free(buf);
+            return false;
+        }
+
+        for (uint32_t off = 0; off < cluster_size; off += 32) {
+
+            unsigned char *entry = buf + off;
+
+            if (entry[0] == 0x00) {
+
+                if (free_offset == -1) {
+
+                    free_offset = dir_offset + (long)off;
+                }
+
+                goto found_slot;
+            }
+
+
+            if (entry[0] == 0xE5) {
+
+                if (free_offset == -1) {
+
+                    free_offset = dir_offset + (long)off;
+                }
+
+                continue;
+            }
+
+
+            unsigned char attr = entry[11];
+
+            if ((attr & 0x0F) == 0x0F) 
+                continue;
+
+            /* Check if name already exists */
+            if (memcmp(entry, short_name, 11) == 0) {
+
+                printf("Error: file '%s' already exists\n", name);
+
+                free(buf);
+                return false;
+            }
+        }
+
+        //next cluster
+        uint32_t next = read_fat_entry(fs, cur);
+
+        if (next == FAT32_EOC || next == 0) 
+            break;
+
+        cur = next;
     }
+
+    found_slot:
+    free(buf);
 
     if (free_offset == -1) {
-        printf("Error: directory is full, cannot create '%s'\n", name);
-        return false;
+        
+        //allocate more space
+        uint32_t new_dir_cluster = allocate_cluster(fs);
+
+        if (new_dir_cluster == 0) {
+            printf("Error: no free clusters available to expand directory\n");
+            return false;
+        }
+
+        //add to LL
+        uint32_t last_cluster = fs->cwd_cluster;
+        uint32_t next;
+
+        while ((next = read_fat_entry(fs, last_cluster)) != FAT32_EOC && next != 0) {
+            last_cluster = next;
+        }
+
+        write_fat_entry(fs, last_cluster, new_dir_cluster);
+        write_fat_entry(fs, new_dir_cluster, FAT32_EOC);
+
+        //new slot start
+        free_offset = cluster_to_offset(fs, new_dir_cluster);
     }
 
-    //Allocate a starting cluster for the file
+    
     uint32_t start_cluster = allocate_cluster(fs);
 
     if (start_cluster == 0) {
@@ -553,7 +718,7 @@ bool fs_creat(FileSystem *fs, const char *name) {
         return false;
     }
 
-    //Write directory entry with the allocated cluster
+    //allocated
     write_directory_entry(fs, free_offset, short_name,
                           0x20,
                           start_cluster,
