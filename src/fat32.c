@@ -331,7 +331,8 @@ static int dir_scan_for_entry(FileSystem *fs,
     return 0;
 }
 
-/* MULTICLUSTER SAFE
+/* MULTICLUSTER SAFE 
+    CALLER MUST FREE
 * scan cwd over all clusters looking for an entry matching filename/dirname and returns a pointer to its starting byte
 * or NULL if not found returns cluster number of entry if found in cluster num , else NULL , also returns offset in cluster in 'cluster_offset'
 */
@@ -821,6 +822,7 @@ bool fs_cd(FileSystem *fs, const char *dirname) {
 
     if ( !(entry[11] & 0x10) ) { //check is directory
         printf("Error: Not a Directory.\n");
+        free(entry);
         return false;
     }
 
@@ -836,6 +838,7 @@ bool fs_cd(FileSystem *fs, const char *dirname) {
 
     /* Update current working directory */
     fs->cwd_cluster = target_cluster;
+    free(entry);
     return true;
 }
 
@@ -1151,10 +1154,15 @@ static long find_directory_entry_offset(FileSystem *fs, const char short_name[11
 
     unsigned char* entry = getEntry( (char*)short_name , fs , &entry_cluster_num , &cluster_offset );
 
+    if( entry == NULL) {
+        return -1;
+    }
+
     *out_attr = entry[11];
     *out_cluster = ((uint32_t)entry[21] << 24) | ((uint32_t)entry[20] << 16) |
                 ((uint32_t)entry[27] << 8) | (uint32_t)entry[26];
 
+    free(entry);
     return (long) cluster_offset;
 
 }
@@ -1261,6 +1269,7 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
 
     if (checkIsOpen( open_files , cwd , filename ) == -1) {
         printf("Error: file '%s' is currently open\n", filename);
+        free(entry);
         return false;
     }
 
@@ -1269,6 +1278,7 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
 
     if ( entry[11] == 0x10 ) {
         printf("Error: rm doesnt work on directories.\n");
+        free(entry);
         return false;
     }
 
@@ -1278,10 +1288,12 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
 
     if (fseek(fs->image, ( cluster_to_offset( fs , entry_cluster_num ) + cluster_offset ) , SEEK_SET) != 0) {
         printf("Error: failed to seek to directory entry\n");
+        free(entry);
         return false;
     }
     if (fwrite(&deleted_marker, 1, 1, fs->image) != 1) {
         printf("Error: failed to mark entry as deleted\n");
+        free(entry);
         return false;
     }
 
@@ -1292,7 +1304,7 @@ bool fs_rm(FileSystem *fs, char *filename, struct OpenFiles *open_files , char* 
 
 
     fflush(fs->image);
-
+    free(entry);
     return true;
 }
 
@@ -1327,6 +1339,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     /* Check if it's not a directory */
     if (!(entry[11] & 0x10)) {
         printf("Error: '%s' is not a directory\n", dirname);
+        free(entry);
         return false;
     }
 
@@ -1338,6 +1351,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     /* Check if directory is empty */
     if (!is_directory_empty(fs, start_cluster)) {
         printf("Error: directory '%s' is not empty\n", dirname);
+        free(entry);
         return false;
     }
 
@@ -1347,10 +1361,12 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
 
     if (fseek(fs->image, ( cluster_to_offset( fs , entry_cluster_num ) + cluster_offset ) , SEEK_SET) != 0) {
         printf("Error: failed to seek to directory entry\n");
+        free(entry);
         return false;
     }
     if (fwrite(&deleted_marker, 1, 1, fs->image) != 1) {
         printf("Error: failed to mark entry as deleted\n");
+        free(entry);
         return false;
     }
 
@@ -1360,7 +1376,7 @@ bool fs_rmdir(FileSystem *fs, const char *dirname, struct OpenFiles *open_files)
     }
 
     fflush(fs->image); //force
-
+    free(entry);
     return true;
 }
 
@@ -1645,10 +1661,15 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
     free(entry_copy);
 
-    if (entry_offset < 0) return 0;
+    if (entry_offset < 0){
 
-    if (attr & 0x10) //id directory
         return 0;
+    }
+
+    if (attr & 0x10){
+  //id directory
+        return 0;
+    }
 
     uint32_t old_size = getFileSize((char*)filename, fs);
 
@@ -1666,8 +1687,10 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
         uint32_t new_cluster = allocate_cluster(fs);
 
 
-        if (new_cluster == 0) 
+        if (new_cluster == 0) {
             return 0;
+        }
+
 
         cur_cluster = new_cluster;
         start_cluster = new_cluster;
@@ -1706,8 +1729,11 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
             uint32_t new_cluster = allocate_cluster(fs);
 
-            if (new_cluster == 0) 
-                return 0;
+            if (new_cluster == 0) {
+                return 0 ;
+
+            }
+
 
             write_fat_entry(fs, last_cluster, new_cluster);
 
@@ -1743,8 +1769,9 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
 
     unsigned char *buf = (unsigned char*) malloc(cluster_size);
 
-    if (!buf) 
+    if (!buf) { 
         return 0;
+    }
 
     while (remaining > 0) {
 
@@ -1781,10 +1808,14 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
     // update directory entry, first cluster (if changed) and file size 
     unsigned char entry[32];
     
-    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) 
+    if (fseek(fs->image, entry_offset, SEEK_SET) != 0) {
+
         return written;
-    if (fread(entry, 1, 32, fs->image) != 32) 
+    }
+    if (fread(entry, 1, 32, fs->image) != 32) {
+
         return written;
+    }
 
     entry[20] = (unsigned char)((start_cluster >> 16) & 0xFF);
     entry[21] = (unsigned char)((start_cluster >> 24) & 0xFF);
@@ -1803,7 +1834,6 @@ uint32_t writeToFile(const char* filename, const char* bytes_to_write, uint32_t 
     }
 
     fflush(fs->image);
-
     return written;
 }
 

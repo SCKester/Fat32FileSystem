@@ -6,9 +6,7 @@
 #include "utils.h"
 
 /*
- * FAT32 Boot Sector (BIOS Parameter Block)
- * These fields are read directly from offsets inside the 512-byte boot sector.
- * Values are LITTLE-ENDIAN in the disk image, so they must be converted.
+ * FAT32 Boot Sector 
  */
 typedef struct {
     uint16_t bytes_per_sector;
@@ -22,11 +20,6 @@ typedef struct {
 
 /*
  * FileSystem
- * Maintains all state needed for mounted FAT32 operations:
- *  - parsed boot sector fields
- *  - FAT & data region offsets
- *  - a FILE* handle to the disk image
- *  - current working directory cluster (for future parts)
  */
 typedef struct {
     FILE *image; // handle to opened FAT32 image file

@@ -1,7 +1,7 @@
 # FAT32 File System Utility
 
 A small psuedo filesystem driver implementing FAT32 standard and showcasing ability to work with file system drivers in C.
-can read and write and navigate directories on a psuedo disk image with opened and closed files.
+can read and write and navigate directories on a psuedo disk image with opened and closed files. opening closing files reading and writing and navigating directories are supported.
 
 ## Group Members
 - **James Fontaine**: jwf22c@fsu.edu
@@ -69,7 +69,7 @@ This will build the executable in bin/filesys
 Once launched, the shell prompt will appear:
 
 ## Bugs
-- **Bug 1**: mv does not work on multicluster directories.
+- **Bug 1**: mv does not work on multicluster directories and will crash.
 - **Bug 2**: This is bug 2.
 - **Bug 3**: This is bug 3.
 
